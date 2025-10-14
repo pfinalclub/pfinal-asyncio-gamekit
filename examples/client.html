@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏客户端 - Asyncio GameKit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .panel h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .connection-status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .status-disconnected {
+            background: #fee;
+            color: #c33;
+        }
+
+        .status-connected {
+            background: #efe;
+            color: #3c3;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-bottom: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .game-info {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .game-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .game-info strong {
+            color: #333;
+        }
+
+        .log-container {
+            height: 400px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .log-info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .log-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .log-error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .log-game {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .guess-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .guess-container input {
+            flex: 1;
+        }
+
+        .guess-container button {
+            flex: 0 0 100px;
+            margin: 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Asyncio GameKit</h1>
+            <p>基于 pfinal-asyncio 的异步游戏框架 - 示例客户端</p>
+        </div>
+
+        <div class="game-container">
+            <!-- 左侧控制面板 -->
+            <div class="panel">
+                <h2>连接控制</h2>
+                
+                <div id="connectionStatus" class="connection-status status-disconnected">
+                    未连接
+                </div>
+
+                <div class="input-group">
+                    <label>服务器地址</label>
+                    <input type="text" id="serverUrl" value="ws://localhost:2345">
+                </div>
+
+                <button id="connectBtn" onclick="connect()">连接</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>断开</button>
+
+                <hr style="margin: 20px 0; border: none; border-top: 2px solid #f0f0f0;">
+
+                <div class="input-group">
+                    <label>玩家名称</label>
+                    <input type="text" id="playerName" value="Player_" placeholder="请输入名称">
+                </div>
+
+                <button onclick="setName()">设置名称</button>
+                <button onclick="quickMatch()">快速匹配</button>
+                <button onclick="getRooms()">查看房间列表</button>
+                <button onclick="leaveRoom()">离开房间</button>
+
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="playerCount">0</div>
+                        <div class="stat-label">房间人数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="guessCount">0</div>
+                        <div class="stat-label">猜测次数</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧游戏区域 -->
+            <div>
+                <div class="panel" style="margin-bottom: 20px;">
+                    <h2>游戏信息</h2>
+                    <div class="game-info" id="gameInfo">
+                        <p>等待连接...</p>
+                    </div>
+
+                    <div id="guessPanel" style="display: none;">
+                        <h3 style="margin-bottom: 10px; color: #667eea;">猜数字游戏</h3>
+                        <p style="color: #666; margin-bottom: 15px;">在范围内猜测正确的数字！</p>
+                        
+                        <div class="guess-container">
+                            <input type="number" id="guessInput" placeholder="输入你的猜测" min="1" max="100">
+                            <button onclick="guess()">提交</button>
+                        </div>
+
+                        <div id="hintDisplay" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 8px; display: none;">
+                            <strong>提示：</strong><span id="hintText"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>消息日志</h2>
+                    <div class="log-container" id="logContainer">
+                        <!-- 日志将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let playerId = null;
+        let currentRoom = null;
+        let guessCount = 0;
+
+        // 随机生成玩家名称
+        document.getElementById('playerName').value = 'Player_' + Math.floor(Math.random() * 1000);
+
+        function connect() {
+            const url = document.getElementById('serverUrl').value;
+            log('正在连接服务器...', 'info');
+
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                updateConnectionStatus(true);
+                log('已连接到服务器', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleMessage(message);
+                } catch (e) {
+                    log('解析消息失败: ' + e.message, 'error');
+                }
+            };
+
+            ws.onerror = (error) => {
+                log('连接错误', 'error');
+            };
+
+            ws.onclose = () => {
+                updateConnectionStatus(false);
+                log('连接已断开', 'error');
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function send(event, data = {}) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ event, data }));
+            } else {
+                log('未连接到服务器', 'error');
+            }
+        }
+
+        function handleMessage(message) {
+            const { event, data } = message;
+
+            switch (event) {
+                case 'connected':
+                    playerId = data.player_id;
+                    log('玩家ID: ' + playerId, 'info');
+                    updateGameInfo(`玩家ID: ${playerId}`);
+                    break;
+
+                case 'name_set':
+                    log('名称已设置: ' + data.name, 'success');
+                    break;
+
+                case 'matched':
+                case 'room_joined':
+                    currentRoom = data;
+                    log('已加入房间: ' + data.id, 'success');
+                    updateGameInfo(`
+                        <p><strong>房间ID:</strong> ${data.id}</p>
+                        <p><strong>状态:</strong> ${data.status}</p>
+                        <p><strong>玩家数:</strong> ${data.player_count}</p>
+                    `);
+                    document.getElementById('playerCount').textContent = data.player_count;
+                    break;
+
+                case 'game:start':
+                    guessCount = 0;
+                    document.getElementById('guessCount').textContent = '0';
+                    log('游戏开始！' + data.message, 'game');
+                    document.getElementById('guessPanel').style.display = 'block';
+                    updateGameInfo(`
+                        <p><strong>游戏:</strong> 猜数字</p>
+                        <p><strong>范围:</strong> ${data.min} - ${data.max}</p>
+                        <p><strong>时间限制:</strong> ${data.time_limit}秒</p>
+                    `);
+                    break;
+
+                case 'game:hint':
+                    guessCount++;
+                    document.getElementById('guessCount').textContent = guessCount;
+                    log(`你的猜测: ${data.guess} - ${data.hint}`, 'game');
+                    showHint(data.hint);
+                    break;
+
+                case 'game:guess_record':
+                    log(`${data.player_name} 猜了 ${data.guess} - ${data.hint}`, 'info');
+                    break;
+
+                case 'game:won':
+                    log(`🎉 ${data.winner.name} 获胜！答案是 ${data.number}`, 'success');
+                    document.getElementById('guessPanel').style.display = 'none';
+                    break;
+
+                case 'game:timeout':
+                    log(`⏰ ${data.message} 答案是 ${data.answer}`, 'error');
+                    document.getElementById('guessPanel').style.display = 'none';
+                    break;
+
+                case 'game:time_update':
+                    log(`剩余时间: ${data.remaining}秒`, 'info');
+                    break;
+
+                case 'player:join':
+                    log(`玩家 ${data.name} 加入房间`, 'info');
+                    if (currentRoom) {
+                        currentRoom.player_count++;
+                        document.getElementById('playerCount').textContent = currentRoom.player_count;
+                    }
+                    break;
+
+                case 'player:leave':
+                    log(`玩家离开房间`, 'info');
+                    if (currentRoom) {
+                        currentRoom.player_count--;
+                        document.getElementById('playerCount').textContent = currentRoom.player_count;
+                    }
+                    break;
+
+                case 'room:status_changed':
+                    log(`房间状态变更: ${data.status}`, 'info');
+                    if (currentRoom) {
+                        currentRoom.status = data.status;
+                    }
+                    break;
+
+                case 'rooms_list':
+                    log('房间列表: ' + data.rooms.length + ' 个房间', 'info');
+                    console.log('房间列表:', data.rooms);
+                    break;
+
+                case 'error':
+                    log('错误: ' + data.message, 'error');
+                    break;
+
+                default:
+                    console.log('未处理的事件:', event, data);
+            }
+        }
+
+        function setName() {
+            const name = document.getElementById('playerName').value;
+            send('set_name', { name });
+        }
+
+        function quickMatch() {
+            send('quick_match', { 
+                room_class: 'GuessNumberRoom',
+                config: {}
+            });
+            log('正在快速匹配...', 'info');
+        }
+
+        function getRooms() {
+            send('get_rooms');
+        }
+
+        function leaveRoom() {
+            send('leave_room');
+            currentRoom = null;
+            document.getElementById('guessPanel').style.display = 'none';
+            updateGameInfo('已离开房间');
+        }
+
+        function guess() {
+            const number = parseInt(document.getElementById('guessInput').value);
+            if (isNaN(number)) {
+                log('请输入有效的数字', 'error');
+                return;
+            }
+            send('guess', { number });
+            document.getElementById('guessInput').value = '';
+        }
+
+        function showHint(hint) {
+            const hintDisplay = document.getElementById('hintDisplay');
+            const hintText = document.getElementById('hintText');
+            hintText.textContent = hint;
+            hintDisplay.style.display = 'block';
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (connected) {
+                statusEl.textContent = '已连接';
+                statusEl.className = 'connection-status status-connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusEl.textContent = '未连接';
+                statusEl.className = 'connection-status status-disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function updateGameInfo(html) {
+            document.getElementById('gameInfo').innerHTML = html;
+        }
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<strong>[${time}]</strong> ${message}`;
+            
+            container.insertBefore(entry, container.firstChild);
+
+            // 限制日志数量
+            while (container.children.length > 50) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // 按Enter键提交猜测
+        document.getElementById('guessInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                guess();
+            }
+        });
+    </script>
+</body>
+</html>
+

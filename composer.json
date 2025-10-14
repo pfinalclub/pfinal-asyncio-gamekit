@@ -1,0 +1,31 @@
+{
+    "name": "pfinalclub/asyncio-gamekit",
+    "description": "基于 pfinal-asyncio 的轻量级异步游戏逻辑框架",
+    "type": "library",
+    "keywords": ["asyncio", "game", "framework", "workerman", "async"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "PFinal Club",
+            "email": "pfinal@126.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "pfinalclub/asyncio": "^1.0",
+        "workerman/workerman": "^4.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "PfinalClub\\AsyncioGamekit\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PfinalClub\\AsyncioGamekit\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
+
