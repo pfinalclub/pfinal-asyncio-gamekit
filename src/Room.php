@@ -3,6 +3,8 @@
 namespace PfinalClub\AsyncioGamekit;
 
 use Generator;
+use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
+use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use function PfinalClub\Asyncio\{create_task, sleep, get_event_loop};
 
 /**
@@ -84,15 +86,21 @@ abstract class Room
 
     /**
      * 添加玩家
+     * 
+     * @throws RoomException
      */
     public function addPlayer(Player $player): bool
     {
         if (count($this->players) >= $this->config['max_players']) {
-            return false;
+            throw RoomException::roomFull($this->id, $this->config['max_players']);
         }
 
         if (isset($this->players[$player->getId()])) {
-            return false;
+            throw RoomException::playerAlreadyInRoom($player->getId(), $this->id);
+        }
+
+        if ($this->status === 'running') {
+            throw RoomException::roomAlreadyStarted($this->id);
         }
 
         $this->players[$player->getId()] = $player;
@@ -196,19 +204,32 @@ abstract class Room
 
     /**
      * 启动房间游戏逻辑
+     * 
+     * @throws RoomException
      */
     public function start(): Generator
     {
+        if ($this->isRunning) {
+            throw RoomException::roomAlreadyStarted($this->id);
+        }
+
         if (!$this->canStart()) {
-            return;
+            $playerCount = count($this->players);
+            $minPlayers = $this->config['min_players'];
+            throw RoomException::roomNotReady($this->id, $playerCount, $minPlayers);
         }
 
         $this->isRunning = true;
         $this->setStatus('running');
 
-        yield from $this->onCreate();
-        yield from $this->onStart();
-        yield from $this->run();
+        try {
+            yield from $this->onCreate();
+            yield from $this->onStart();
+            yield from $this->run();
+        } catch (\Throwable $e) {
+            $this->handleRoomError($e);
+            throw $e;
+        }
     }
 
     /**
@@ -217,13 +238,17 @@ abstract class Room
      * @param float $interval 时间间隔（秒）
      * @param callable $callback 回调函数
      * @param bool $repeat 是否重复执行
-     * @return int 定时器ID
+     * @return int|null 定时器ID，失败返回null
      */
-    protected function addTimer(float $interval, callable $callback, bool $repeat = false): int
+    protected function addTimer(float $interval, callable $callback, bool $repeat = false): ?int
     {
         $loop = get_event_loop();
         $timerId = $loop->addTimer($interval, $callback, $repeat);
-        $this->timerIds[] = $timerId;
+        
+        if ($timerId !== null) {
+            $this->timerIds[] = $timerId;
+        }
+        
         return $timerId;
     }
 
@@ -341,7 +366,11 @@ abstract class Room
      */
     protected function onPlayerJoin(Player $player): void
     {
-        // 子类可重写
+        LoggerFactory::info("Player {player_name} joined room {room_id}", [
+            'player_name' => $player->getName(),
+            'player_id' => $player->getId(),
+            'room_id' => $this->id,
+        ]);
     }
 
     /**
@@ -349,7 +378,11 @@ abstract class Room
      */
     protected function onPlayerLeave(Player $player): void
     {
-        // 子类可重写
+        LoggerFactory::info("Player {player_name} left room {room_id}", [
+            'player_name' => $player->getName(),
+            'player_id' => $player->getId(),
+            'room_id' => $this->id,
+        ]);
     }
 
     /**
@@ -359,6 +392,27 @@ abstract class Room
     {
         // 子类可重写
         yield;
+    }
+
+    /**
+     * 处理房间运行时错误
+     */
+    protected function handleRoomError(\Throwable $e): void
+    {
+        // 记录错误
+        LoggerFactory::error("Room error in {room_id}: {message}", [
+            'room_id' => $this->id,
+            'message' => $e->getMessage(),
+            'exception' => get_class($e),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+        
+        // 广播错误给玩家
+        $this->broadcast('room:error', [
+            'message' => 'Game error occurred',
+            'type' => get_class($e),
+        ]);
     }
 }
 

@@ -4,6 +4,8 @@ namespace PfinalClub\AsyncioGamekit;
 
 use Workerman\Worker;
 use Workerman\Connection\TcpConnection;
+use PfinalClub\AsyncioGamekit\Exceptions\{GameException, RoomException, ServerException};
+use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 
 /**
  * GameServer 游戏服务器
@@ -82,6 +84,11 @@ class GameServer
         
         $this->connections[$connection->id] = $player;
         
+        LoggerFactory::info("New player connected: {player_id}", [
+            'player_id' => $playerId,
+            'connection_id' => $connection->id,
+        ]);
+        
         // 发送欢迎消息
         $player->send('connected', [
             'player_id' => $playerId,
@@ -102,7 +109,7 @@ class GameServer
         try {
             $message = json_decode($data, true);
             if (!$message || !isset($message['event'])) {
-                return;
+                throw ServerException::invalidMessageFormat($data);
             }
 
             $event = $message['event'];
@@ -119,13 +126,25 @@ class GameServer
                 );
             }
 
-        } catch (\Exception $e) {
-            $player->send('error', ['message' => $e->getMessage()]);
+        } catch (GameException $e) {
+            // 游戏框架异常
+            $player->send('error', [
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'context' => $e->getContext()
+            ]);
+            $this->logError($e);
+        } catch (\Throwable $e) {
+            // 其他异常
+            $player->send('error', ['message' => 'Internal server error']);
+            $this->logError($e);
         }
     }
 
     /**
      * 处理系统事件
+     * 
+     * @throws RoomException
      */
     protected function handleSystemEvent(Player $player, string $event, mixed $data): void
     {
@@ -148,13 +167,9 @@ class GameServer
             case 'join_room':
                 $roomId = $data['room_id'] ?? null;
                 if ($roomId) {
-                    $success = $this->roomManager->joinRoom($player, $roomId);
-                    if ($success) {
-                        $room = $this->roomManager->getRoom($roomId);
-                        $player->send('room_joined', $room->toArray());
-                    } else {
-                        $player->send('error', ['message' => 'Failed to join room']);
-                    }
+                    $this->roomManager->joinRoom($player, $roomId);
+                    $room = $this->roomManager->getRoom($roomId);
+                    $player->send('room_joined', $room->toArray());
                 }
                 break;
 
@@ -193,6 +208,11 @@ class GameServer
             return;
         }
 
+        LoggerFactory::info("Player disconnected: {player_name}", [
+            'player_id' => $player->getId(),
+            'player_name' => $player->getName(),
+        ]);
+
         // 玩家离开房间
         $this->roomManager->leaveRoom($player);
         
@@ -221,6 +241,25 @@ class GameServer
     public function run(): void
     {
         Worker::runAll();
+    }
+
+    /**
+     * 记录错误
+     */
+    protected function logError(\Throwable $e): void
+    {
+        $context = [
+            'exception' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ];
+
+        if ($e instanceof GameException) {
+            $context = array_merge($context, $e->getContext());
+        }
+
+        LoggerFactory::error("Server error: {message}", $context);
     }
 }
 

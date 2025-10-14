@@ -3,6 +3,7 @@
 namespace PfinalClub\AsyncioGamekit;
 
 use Generator;
+use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 
 /**
  * RoomManager 房间管理器
@@ -86,23 +87,28 @@ class RoomManager
 
     /**
      * 玩家加入房间
+     * 
+     * @throws RoomException
      */
     public function joinRoom(Player $player, string $roomId): bool
     {
         $room = $this->getRoom($roomId);
         if (!$room) {
-            return false;
+            throw RoomException::roomNotFound($roomId);
         }
 
         // 如果玩家已在其他房间，先离开
         if (isset($this->playerRoomMap[$player->getId()])) {
-            $oldRoomId = $this->playerRoomMap[$player->getId()];
             $this->leaveRoom($player);
         }
 
-        if ($room->addPlayer($player)) {
-            $this->playerRoomMap[$player->getId()] = $roomId;
-            return true;
+        try {
+            if ($room->addPlayer($player)) {
+                $this->playerRoomMap[$player->getId()] = $roomId;
+                return true;
+            }
+        } catch (RoomException $e) {
+            throw $e;
         }
 
         return false;
@@ -153,7 +159,7 @@ class RoomManager
             if (
                 get_class($room) === $roomClass 
                 && $room->getStatus() === 'waiting'
-                && $room->canStart()
+                && $room->getPlayerCount() < $room->toArray()['config']['max_players']
             ) {
                 return $room;
             }

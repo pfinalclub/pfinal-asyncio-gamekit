@@ -1,5 +1,9 @@
 # pfinal-asyncio-gamekit
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-8892BF.svg)](https://www.php.net/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 > 基于 [pfinal-asyncio](https://github.com/pfinalclub/pfinal-asyncio) 的轻量级异步游戏逻辑框架
 
 一个面向 Workerman + pfinal-asyncio 的异步游戏框架，让你用 `async/await` 编排游戏逻辑，就像写故事剧本一样。
@@ -15,6 +19,14 @@
 - 🔄 **房间生命周期** - onCreate、onStart、run、onDestroy 完整钩子
 - 🎯 **RoomManager** - 多房间管理和快速匹配
 - 🌐 **GameServer** - 开箱即用的 WebSocket 游戏服务器
+
+### 高级功能 🆕
+
+- 🧪 **单元测试** - 完整的 PHPUnit 测试框架
+- 🚨 **异常处理** - 结构化异常系统，带上下文信息
+- 📝 **日志系统** - 多级别日志，支持控制台和文件输出
+- 💾 **状态持久化** - 支持 Redis、文件等多种存储方式
+- ⚖️ **负载均衡** - 多进程房间分配，支持轮询、最少连接等策略
 
 ### 框架定位
 
@@ -341,6 +353,105 @@ php examples/WebSocketServer.php
 
 然后在浏览器中打开 `examples/client.html` 连接游戏服务器。
 
+### 示例 4：高级游戏（新特性展示）🆕
+
+展示日志、异常处理、持久化等新特性：
+```bash
+php examples/AdvancedGame.php
+```
+
+## 🆕 新特性使用
+
+### 日志系统
+
+```php
+use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
+use PfinalClub\AsyncioGamekit\Logger\LogLevel;
+
+// 配置日志
+LoggerFactory::configure([
+    'min_level' => LogLevel::INFO,
+    'console' => ['enabled' => true, 'color' => true],
+    'file' => [
+        'enabled' => true,
+        'path' => 'logs/game.log',
+        'max_size' => 10 * 1024 * 1024,
+    ],
+]);
+
+// 记录日志
+LoggerFactory::info('Game started', ['room_id' => 'room_001']);
+LoggerFactory::error('Error: {message}', ['message' => 'Connection lost']);
+```
+
+### 异常处理
+
+```php
+use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
+
+try {
+    $room->addPlayer($player);
+} catch (RoomException $e) {
+    // 获取结构化异常信息
+    $player->send('error', [
+        'message' => $e->getMessage(),
+        'code' => $e->getCode(),
+        'context' => $e->getContext()
+    ]);
+}
+```
+
+### 状态持久化
+
+```php
+use PfinalClub\AsyncioGamekit\Persistence\{FileAdapter, RedisAdapter, RoomStateManager};
+
+// 使用文件存储
+$adapter = new FileAdapter('storage/game');
+$stateManager = new RoomStateManager($adapter);
+
+// 或使用 Redis（推荐）
+$adapter = RedisAdapter::create('127.0.0.1', 6379);
+$stateManager = new RoomStateManager($adapter);
+
+// 保存和恢复房间状态
+$stateManager->saveRoomState($room);
+$state = $stateManager->getRoomState('room_001');
+```
+
+### 负载均衡
+
+```php
+use PfinalClub\AsyncioGamekit\LoadBalance\{
+    RoomDistributor,
+    LeastConnectionsBalancer
+};
+
+// 创建负载均衡器
+$balancer = new LeastConnectionsBalancer();
+$distributor = new RoomDistributor($balancer);
+
+// 注册工作进程
+$distributor->registerWorker(1, ['connections' => 10]);
+$distributor->registerWorker(2, ['connections' => 5]);
+
+// 分配房间（会选择连接数最少的进程）
+$workerId = $distributor->assignRoom('room_001');
+```
+
+### 单元测试
+
+```bash
+# 安装 PHPUnit
+composer require --dev phpunit/phpunit
+
+# 运行测试
+./vendor/bin/phpunit
+
+# 运行特定测试
+./vendor/bin/phpunit tests/RoomTest.php
+```
+
 ## 🏗️ 高级用法
 
 ### 自定义定时任务
@@ -433,6 +544,7 @@ foreach ($room2->getPlayers() as $player) {
 - **SimpleGame.php** - 简单的倒计时游戏
 - **CardGame.php** - 回合制卡牌游戏
 - **WebSocketServer.php** - 完整的 WebSocket 游戏服务器
+- **AdvancedGame.php** 🆕 - 展示新特性的高级示例
 - **client.html** - 网页游戏客户端
 
 ## 🔧 配置建议
@@ -455,6 +567,16 @@ use Workerman\Worker;
 Worker::$daemonize = false;
 Worker::$stdoutFile = '/tmp/workerman.log';
 ```
+
+## 📚 文档
+
+- [API 文档](docs/API.md) - 完整的 API 参考
+- [使用指南](docs/GUIDE.md) - 详细的使用教程
+- [改进说明](docs/IMPROVEMENTS.md) 🆕 - 新特性详解
+- [项目结构](PROJECT_STRUCTURE.md) - 代码组织说明
+- [更新日志](CHANGELOG.md) - 版本历史
+- [贡献指南](CONTRIBUTING.md) - 如何参与贡献
+- [安装说明](INSTALL.md) - 安装和配置
 
 ## 📖 与 Python asyncio 对比
 
