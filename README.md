@@ -570,13 +570,20 @@ Worker::$stdoutFile = '/tmp/workerman.log';
 
 ## 📚 文档
 
+### 用户文档
 - [API 文档](docs/API.md) - 完整的 API 参考
 - [使用指南](docs/GUIDE.md) - 详细的使用教程
 - [改进说明](docs/IMPROVEMENTS.md) 🆕 - 新特性详解
+- [安装说明](INSTALL.md) - 安装和配置
+
+### 运维文档
+- [生产部署](docs/PRODUCTION_GUIDE.md) 🆕 - 生产环境部署指南
+- [测试指南](docs/TESTING.md) 🆕 - 单元测试最佳实践
+
+### 项目文档
 - [项目结构](PROJECT_STRUCTURE.md) - 代码组织说明
 - [更新日志](CHANGELOG.md) - 版本历史
 - [贡献指南](CONTRIBUTING.md) - 如何参与贡献
-- [安装说明](INSTALL.md) - 安装和配置
 
 ## 📖 与 Python asyncio 对比
 
