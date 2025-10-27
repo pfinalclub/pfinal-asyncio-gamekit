@@ -12,18 +12,18 @@
 
 ### 1. 协程与异步
 
-pfinal-asyncio-gamekit 基于 PHP Generator 实现协程，让你可以用同步的方式编写异步代码。
+pfinal-asyncio-gamekit 基于 PHP Fiber 实现协程，让你可以用同步的方式编写异步代码。
 
 ```php
-function myAsyncFunction(): Generator
+function myAsyncFunction(): mixed
 {
     // 异步等待
-    yield sleep(1);
+    sleep(1);
     
     // 并发执行
-    $results = yield gather(
-        create_task($this->task1()),
-        create_task($this->task2())
+    $results = gather(
+        create_task(fn() => $this->task1()),
+        create_task(fn() => $this->task2())
     );
     
     return $results;
@@ -31,9 +31,9 @@ function myAsyncFunction(): Generator
 ```
 
 **关键点：**
-- 所有异步函数必须返回 `Generator`
-- 使用 `yield` 来等待异步操作
-- 使用 `yield from` 来调用其他异步函数
+- 所有异步函数必须返回 `mixed`
+- 使用 `sleep()` 来等待异步操作
+- 使用 `await()` 来调用其他异步函数
 
 ### 2. 房间生命周期
 

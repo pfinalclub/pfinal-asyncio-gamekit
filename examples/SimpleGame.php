@@ -27,33 +27,36 @@ class CountdownRoom extends Room
     /**
      * 房间创建时
      */
-    protected function onCreate(): Generator
+    protected function onCreate(): mixed
     {
         echo "房间 {$this->id} 创建成功\n";
         $this->broadcast('room:created', [
             'message' => '欢迎来到倒计时游戏！',
             'countdown' => $this->config['countdown_seconds']
         ]);
-        yield;
+        
+        return null;
     }
 
     /**
      * 游戏开始时
      */
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         echo "游戏开始！\n";
         $this->broadcast('game:start', [
             'message' => '游戏即将开始！',
             'players' => array_map(fn($p) => $p->toArray(), $this->players)
         ]);
-        yield sleep(1);
+        sleep(1);
+        
+        return null;
     }
 
     /**
      * 游戏主逻辑
      */
-    protected function run(): Generator
+    protected function run(): mixed
     {
         $countdown = $this->config['countdown_seconds'];
         
@@ -61,7 +64,7 @@ class CountdownRoom extends Room
         for ($i = $countdown; $i > 0; $i--) {
             echo "倒计时: {$i}\n";
             $this->broadcast('game:countdown', ['seconds' => $i]);
-            yield sleep(1);
+            sleep(1);
         }
 
         // 游戏结束
@@ -71,8 +74,10 @@ class CountdownRoom extends Room
             'winner' => $this->determineWinner()
         ]);
 
-        yield sleep(2);
-        yield from $this->destroy();
+        sleep(2);
+        $this->destroy();
+        
+        return null;
     }
 
     /**
@@ -110,7 +115,7 @@ class CountdownRoom extends Room
     /**
      * 处理玩家消息
      */
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         if ($event === 'ready') {
             $player->setReady(true);
@@ -119,22 +124,24 @@ class CountdownRoom extends Room
                 'player_name' => $player->getName()
             ]);
         }
-        yield;
+        
+        return null;
     }
 
     /**
      * 房间销毁时
      */
-    protected function onDestroy(): Generator
+    protected function onDestroy(): mixed
     {
         echo "房间 {$this->id} 已销毁\n";
-        yield;
+        
+        return null;
     }
 }
 
 // ==================== 运行示例 ====================
 
-function main(): Generator
+function main(): mixed
 {
     echo "=== 简单倒计时游戏示例 ===\n\n";
 
@@ -156,11 +163,11 @@ function main(): Generator
     echo "当前玩家数: {$room->getPlayerCount()}\n\n";
 
     // 启动游戏
-    yield from $room->start();
+    $room->start();
 
     echo "\n游戏已结束\n";
 }
 
 // 运行
-run(main());
+run(main(...));
 

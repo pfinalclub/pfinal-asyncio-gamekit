@@ -70,7 +70,7 @@ class CardGameRoom extends Room
     /**
      * 游戏开始
      */
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         echo "卡牌游戏开始！\n";
         $this->initDeck();
@@ -81,13 +81,15 @@ class CardGameRoom extends Room
             'rounds' => $this->config['rounds']
         ]);
         
-        yield sleep(2);
+        sleep(2);
+        
+        return null;
     }
 
     /**
      * 游戏主逻辑
      */
-    protected function run(): Generator
+    protected function run(): mixed
     {
         $totalRounds = $this->config['rounds'];
         
@@ -100,20 +102,22 @@ class CardGameRoom extends Room
                 'total_rounds' => $totalRounds
             ]);
             
-            yield from $this->playRound();
+            $this->playRound();
             
             // 回合间隔
-            yield sleep(2);
+            sleep(2);
         }
         
         // 游戏结束，统计得分
-        yield from $this->gameEnd();
+        $this->gameEnd();
+        
+        return null;
     }
 
     /**
      * 进行一个回合
      */
-    private function playRound(): Generator
+    private function playRound(): mixed
     {
         $playerList = array_values($this->players);
         
@@ -141,7 +145,7 @@ class CardGameRoom extends Room
             $iterations = 0;
             
             while (!$player->get('action_taken', false) && $elapsed < $timeout && $iterations < $maxIterations) {
-                yield sleep($step);
+                sleep($step);
                 $elapsed += $step;
                 $iterations++;
             }
@@ -152,8 +156,10 @@ class CardGameRoom extends Room
                 $this->autoPlay($player);
             }
             
-            yield sleep(1);
+            sleep(1);
         }
+        
+        return null;
     }
 
     /**
@@ -198,7 +204,7 @@ class CardGameRoom extends Room
     /**
      * 游戏结束
      */
-    private function gameEnd(): Generator
+    private function gameEnd(): mixed
     {
         echo "\n游戏结束！统计得分...\n";
         
@@ -223,14 +229,16 @@ class CardGameRoom extends Room
         
         echo "获胜者: {$scores[0]['player_name']} (得分: {$scores[0]['score']})\n";
         
-        yield sleep(3);
-        yield from $this->destroy();
+        sleep(3);
+        $this->destroy();
+        
+        return null;
     }
 
     /**
      * 处理玩家消息
      */
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         if ($event === 'play_card' && !$player->get('action_taken', false)) {
             $cardIndex = $data['card_index'] ?? 0;
@@ -255,7 +263,8 @@ class CardGameRoom extends Room
                 $player->set('action_taken', true);
             }
         }
-        yield;
+        
+        return null;
     }
 
     protected function onPlayerJoin(Player $player): void
@@ -266,7 +275,7 @@ class CardGameRoom extends Room
 
 // ==================== 运行示例 ====================
 
-function main(): Generator
+function main(): mixed
 {
     echo "=== 卡牌游戏示例 ===\n\n";
 
@@ -290,10 +299,10 @@ function main(): Generator
     echo "玩家数: {$room->getPlayerCount()}\n\n";
 
     // 启动游戏
-    yield from $room->start();
+    $room->start();
 
     echo "\n卡牌游戏已结束\n";
 }
 
-run(main());
+run(main(...));
 

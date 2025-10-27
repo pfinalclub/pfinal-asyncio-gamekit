@@ -60,7 +60,7 @@ class AdvancedGameRoom extends Room
     /**
      * 房间创建
      */
-    protected function onCreate(): Generator
+    protected function onCreate(): mixed
     {
         LoggerFactory::info("Creating advanced game room: {room_id}", [
             'room_id' => $this->id,
@@ -80,14 +80,14 @@ class AdvancedGameRoom extends Room
             'message' => '高级游戏房间已创建！',
             'features' => ['日志记录', '状态持久化', '异常处理'],
         ]);
-
-        yield;
+        
+        return null;
     }
 
     /**
      * 游戏开始
      */
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         LoggerFactory::info("Starting advanced game in room {room_id}", [
             'room_id' => $this->id,
@@ -103,13 +103,15 @@ class AdvancedGameRoom extends Room
         // 在纯 asyncio 环境下运行时，定时器不可用
         // 如需使用定时器，请在 GameServer 中运行此游戏
 
-        yield sleep(2);
+        sleep(2);
+        
+        return null;
     }
 
     /**
      * 游戏主逻辑
      */
-    protected function run(): Generator
+    protected function run(): mixed
     {
         $duration = $this->config['game_duration'];
         $startTime = time();
@@ -130,7 +132,7 @@ class AdvancedGameRoom extends Room
                     ]);
                 }
 
-                yield sleep(1);
+                sleep(1);
 
                 // 模拟随机事件
                 if (rand(1, 20) === 1) {
@@ -151,8 +153,10 @@ class AdvancedGameRoom extends Room
             throw $e;
         }
 
-        yield sleep(3);
-        yield from $this->destroy();
+        sleep(3);
+        $this->destroy();
+        
+        return null;
     }
 
     /**
@@ -252,7 +256,7 @@ class AdvancedGameRoom extends Room
     /**
      * 处理玩家消息
      */
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         LoggerFactory::debug("Player message received", [
             'room_id' => $this->id,
@@ -281,8 +285,8 @@ class AdvancedGameRoom extends Room
             
             $player->send('error', $e->toArray());
         }
-
-        yield;
+        
+        return null;
     }
 
     /**
@@ -313,20 +317,20 @@ class AdvancedGameRoom extends Room
     /**
      * 房间销毁
      */
-    protected function onDestroy(): Generator
+    protected function onDestroy(): mixed
     {
         LoggerFactory::info("Destroying room {room_id}", ['room_id' => $this->id]);
         
         // 清理持久化数据
         $this->stateManager->deleteRoomState($this->id);
         
-        yield;
+        return null;
     }
 }
 
 // ==================== 运行示例 ====================
 
-function main(): Generator
+function main(): mixed
 {
     echo "=== 高级游戏示例 ===\n";
     echo "展示日志、异常处理、持久化等特性\n\n";
@@ -362,7 +366,7 @@ function main(): Generator
         echo "房间状态: {$room->getStatus()}\n\n";
 
         // 启动游戏
-        yield from $room->start();
+        $room->start();
 
         echo "\n游戏已结束！\n";
         echo "查看日志: logs/game.log\n";
@@ -378,5 +382,5 @@ function main(): Generator
     }
 }
 
-run(main());
+run(main(...));
 

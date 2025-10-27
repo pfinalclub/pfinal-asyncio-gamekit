@@ -1,7 +1,7 @@
 # pfinal-asyncio-gamekit
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
-[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-8892BF.svg)](https://www.php.net/)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > 基于 [pfinal-asyncio](https://github.com/pfinalclub/pfinal-asyncio) 的轻量级异步游戏逻辑框架
@@ -46,8 +46,8 @@ composer require pfinalclub/asyncio-gamekit
 
 ## 📋 要求
 
-- PHP >= 8.3
-- pfinalclub/asyncio >= 1.0
+- PHP >= 8.1
+- pfinalclub/asyncio >= 2.0
 - workerman/workerman >= 4.1
 
 ## 🚀 快速开始
@@ -58,12 +58,11 @@ composer require pfinalclub/asyncio-gamekit
 <?php
 use PfinalClub\AsyncioGamekit\Room;
 use PfinalClub\AsyncioGamekit\Player;
-use Generator;
 use function PfinalClub\Asyncio\{run, sleep};
 
 class MyGameRoom extends Room
 {
-    protected function run(): Generator
+    protected function run(): mixed
     {
         // 游戏开始
         $this->broadcast('game:start', ['message' => '游戏开始！']);
@@ -71,17 +70,17 @@ class MyGameRoom extends Room
         // 游戏主循环
         for ($round = 1; $round <= 3; $round++) {
             $this->broadcast('game:round', ['round' => $round]);
-            yield sleep(5); // 每回合5秒
+            sleep(5); // 每回合5秒
         }
         
         // 游戏结束
         $this->broadcast('game:end', ['message' => '游戏结束！']);
-        yield from $this->destroy();
+        $this->destroy();
     }
 }
 
 // 运行游戏
-function main(): Generator {
+function main(): mixed {
     $room = new MyGameRoom('room_001');
     
     $player1 = new Player('p1', null, 'Alice');
@@ -90,10 +89,10 @@ function main(): Generator {
     $room->addPlayer($player1);
     $room->addPlayer($player2);
     
-    yield from $room->start();
+    $room->start();
 }
 
-run(main());
+run(main(...));
 ```
 
 ### 2. 完整的 WebSocket 游戏服务器
@@ -158,27 +157,25 @@ protected function getDefaultConfig(): array
 
 ```php
 // 房间创建时（异步）
-protected function onCreate(): Generator
+protected function onCreate(): mixed
 {
     $this->broadcast('room:created', ['message' => '房间已创建']);
-    yield;
 }
 
 // 游戏开始时（异步）
-protected function onStart(): Generator
+protected function onStart(): mixed
 {
     $this->broadcast('game:start', ['message' => '游戏即将开始']);
-    yield sleep(3);
+    sleep(3);
 }
 
 // 游戏主循环（必须实现）
-abstract protected function run(): Generator;
+abstract protected function run(): mixed;
 
 // 房间销毁时（异步）
-protected function onDestroy(): Generator
+protected function onDestroy(): mixed
 {
     $this->broadcast('room:destroyed', ['message' => '房间已销毁']);
-    yield;
 }
 
 // 玩家加入时（同步）
@@ -194,12 +191,11 @@ protected function onPlayerLeave(Player $player): void
 }
 
 // 处理玩家消息（异步）
-public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
 {
     if ($event === 'action') {
         // 处理玩家动作
     }
-    yield;
 }
 ```
 
@@ -211,10 +207,10 @@ $this->broadcast('event_name', $data);
 $this->broadcast('event_name', $data, $exceptPlayer); // 排除某玩家
 
 // 异步广播（延迟）
-yield from $this->broadcastAsync('event_name', $data, 2.0); // 延迟2秒
+$this->broadcastAsync('event_name', $data, 2.0); // 延迟2秒
 
 // 延迟执行
-yield from $this->delay(5.0); // 延迟5秒
+$this->delay(5.0); // 延迟5秒
 
 // 添加定时器
 $timerId = $this->addTimer(1.0, function() {
@@ -468,7 +464,7 @@ protected function run(): Generator
     $this->set('start_time', time());
     
     // 游戏逻辑
-    yield sleep(60);
+    sleep(60);
     
     // 清理定时器
     $this->removeTimer($timerId);
@@ -480,26 +476,26 @@ protected function run(): Generator
 ```php
 use function PfinalClub\Asyncio\{create_task, gather};
 
-protected function run(): Generator
+protected function run(): mixed
 {
     // 并发执行多个任务
-    $task1 = create_task($this->taskA());
-    $task2 = create_task($this->taskB());
+    $task1 = create_task(fn() => $this->taskA());
+    $task2 = create_task(fn() => $this->taskB());
     
-    $results = yield gather($task1, $task2);
+    $results = gather($task1, $task2);
     
     // 继续游戏逻辑...
 }
 
-private function taskA(): Generator
+private function taskA(): mixed
 {
-    yield sleep(2);
+    sleep(2);
     return 'Result A';
 }
 
-private function taskB(): Generator
+private function taskB(): mixed
 {
-    yield sleep(1);
+    sleep(1);
     return 'Result B';
 }
 ```
@@ -510,11 +506,11 @@ private function taskB(): Generator
 use function PfinalClub\Asyncio\wait_for;
 use PfinalClub\Asyncio\TimeoutException;
 
-protected function run(): Generator
+protected function run(): mixed
 {
     try {
         // 等待玩家响应，最多10秒
-        $result = yield wait_for($this->waitForPlayerAction(), 10.0);
+        $result = wait_for(fn() => $this->waitForPlayerAction(), 10.0);
     } catch (TimeoutException $e) {
         // 超时处理
         $this->broadcast('game:timeout', ['message' => '超时！']);
@@ -589,11 +585,11 @@ Worker::$stdoutFile = '/tmp/workerman.log';
 
 | 功能 | Python asyncio | pfinal-asyncio-gamekit |
 |------|----------------|------------------------|
-| 协程定义 | `async def` | `function(): \Generator` |
-| 等待协程 | `await expr` | `yield expr` |
-| 睡眠 | `await asyncio.sleep(1)` | `yield sleep(1)` |
-| 并发任务 | `asyncio.gather()` | `yield gather()` |
-| 创建任务 | `asyncio.create_task()` | `create_task()` |
+| 协程定义 | `async def` | `function(): mixed` |
+| 等待协程 | `await expr` | `await(expr)` |
+| 睡眠 | `await asyncio.sleep(1)` | `sleep(1)` |
+| 并发任务 | `asyncio.gather()` | `gather()` |
+| 创建任务 | `asyncio.create_task()` | `create_task(fn())` |
 | 事件循环 | `asyncio.run()` | `run()` |
 
 ## 🤝 贡献

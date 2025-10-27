@@ -11,8 +11,8 @@
         }
     ],
     "require": {
-        "php": ">=8.3",
-        "pfinalclub/asyncio": "^1.0",
+        "php": ">=8.1",
+        "pfinalclub/asyncio": "^2.0",
         "workerman/workerman": "^4.1"
     },
     "require-dev": {

@@ -2,7 +2,6 @@
 
 namespace PfinalClub\AsyncioGamekit;
 
-use Generator;
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use function PfinalClub\Asyncio\{create_task, sleep, get_event_loop};
@@ -183,10 +182,10 @@ abstract class Room
     /**
      * 异步广播（延迟执行）
      */
-    public function broadcastAsync(string $event, mixed $data = null, float $delay = 0): Generator
+    public function broadcastAsync(string $event, mixed $data = null, float $delay = 0): mixed
     {
         if ($delay > 0) {
-            yield sleep($delay);
+            sleep($delay);
         }
         $this->broadcast($event, $data);
     }
@@ -207,7 +206,7 @@ abstract class Room
      * 
      * @throws RoomException
      */
-    public function start(): Generator
+    public function start(): mixed
     {
         if ($this->isRunning) {
             throw RoomException::roomAlreadyStarted($this->id);
@@ -223,9 +222,9 @@ abstract class Room
         $this->setStatus('running');
 
         try {
-            yield from $this->onCreate();
-            yield from $this->onStart();
-            yield from $this->run();
+            $this->onCreate();
+            $this->onStart();
+            $this->run();
         } catch (\Throwable $e) {
             $this->handleRoomError($e);
             throw $e;
@@ -265,21 +264,21 @@ abstract class Room
     /**
      * 延迟执行任务
      */
-    protected function delay(float $seconds): Generator
+    protected function delay(float $seconds): mixed
     {
-        yield sleep($seconds);
+        sleep($seconds);
     }
 
     /**
      * 销毁房间
      */
-    public function destroy(): Generator
+    public function destroy(): mixed
     {
         if ($this->isRunning) {
             $this->isRunning = false;
         }
 
-        yield from $this->onDestroy();
+        $this->onDestroy();
 
         // 清除所有定时器
         foreach ($this->timerIds as $timerId) {
@@ -294,6 +293,8 @@ abstract class Room
         $this->players = [];
 
         $this->setStatus('finished');
+        
+        return null;
     }
 
     /**
@@ -332,33 +333,30 @@ abstract class Room
     /**
      * 房间创建时调用
      */
-    protected function onCreate(): Generator
+    protected function onCreate(): mixed
     {
         // 子类可重写
-        yield;
     }
 
     /**
      * 游戏开始时调用
      */
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         // 子类可重写
-        yield;
     }
 
     /**
      * 游戏主循环（必须实现）
      */
-    abstract protected function run(): Generator;
+    abstract protected function run(): mixed;
 
     /**
      * 房间销毁时调用
      */
-    protected function onDestroy(): Generator
+    protected function onDestroy(): mixed
     {
         // 子类可重写
-        yield;
     }
 
     /**
@@ -388,10 +386,9 @@ abstract class Room
     /**
      * 处理玩家消息
      */
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         // 子类可重写
-        yield;
     }
 
     /**

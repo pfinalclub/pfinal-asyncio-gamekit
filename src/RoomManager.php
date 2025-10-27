@@ -2,7 +2,6 @@
 
 namespace PfinalClub\AsyncioGamekit;
 
-use Generator;
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 
 /**
@@ -66,16 +65,16 @@ class RoomManager
     /**
      * 删除房间
      */
-    public function removeRoom(string $roomId): Generator
+    public function removeRoom(string $roomId): mixed
     {
         if (!isset($this->rooms[$roomId])) {
-            return;
+            return null;
         }
 
         $room = $this->rooms[$roomId];
         
         // 销毁房间
-        yield from $room->destroy();
+        $room->destroy();
         
         // 清理玩家映射
         foreach ($room->getPlayers() as $player) {

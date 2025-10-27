@@ -2,6 +2,37 @@
 
 本项目的所有重要更改都会记录在此文件中。
 
+## [2.0.0] - 2025-01-XX
+
+### 重大变更 💥
+
+#### 升级到 pfinalclub/asyncio v2.0
+- 从 Generator 协程迁移到 Fiber 协程
+- 性能提升 2-3 倍
+- API 简化，移除所有 yield 语法
+
+#### 破坏性变更
+- 所有异步方法签名从 `Generator` 改为 `mixed`
+- 移除 `yield` 和 `yield from` 关键字
+- `create_task` 需要传入 callable 而不是 Generator
+- `run()` 调用方式改为 `run(callable(...))`
+- PHP 最低版本要求降低到 8.1（适配 asyncio v2）
+
+#### 迁移指南
+详见：`docs/MIGRATION_V2.md`
+
+### 升级 ⬆️
+- pfinalclub/asyncio: ^1.0 → ^2.0
+- PHP 版本要求：>=8.3 → >=8.1
+
+### 受益 🚀
+- 性能提升 2-3 倍
+- 代码更简洁易读
+- 更好的错误堆栈
+- 支持 asyncio v2 的新特性（事件循环优化、多进程、并发控制等）
+
+---
+
 ## [1.0.0] - 2024-10-14
 
 ### 新增 🎉

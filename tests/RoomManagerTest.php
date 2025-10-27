@@ -7,7 +7,6 @@ use PfinalClub\AsyncioGamekit\RoomManager;
 use PfinalClub\AsyncioGamekit\Room;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Tests\Helpers\TestRoom;
-use Generator;
 
 class RoomManagerTest extends TestCase
 {

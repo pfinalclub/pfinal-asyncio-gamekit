@@ -12,7 +12,6 @@ use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Logger\{LoggerFactory, LogLevel, WorkermanLogHandler};
 use PfinalClub\AsyncioGamekit\Persistence\FileAdapter;
 use PfinalClub\AsyncioGamekit\Persistence\RoomStateManager;
-use Generator;
 use function PfinalClub\Asyncio\sleep;
 
 // 配置日志系统 - 使用 Workerman 日志
@@ -56,7 +55,7 @@ class FullFeaturedGameRoom extends Room
         ];
     }
 
-    protected function onCreate(): Generator
+    protected function onCreate(): mixed
     {
         LoggerFactory::info("Creating game room with full features", [
             'room_id' => $this->id,
@@ -69,11 +68,11 @@ class FullFeaturedGameRoom extends Room
                 'room_id' => $this->id,
             ]);
         }
-
-        yield;
+        
+        return null;
     }
 
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         LoggerFactory::info("Starting game with timer support", [
             'room_id' => $this->id,
@@ -113,10 +112,12 @@ class FullFeaturedGameRoom extends Room
             }, true);
         }
 
-        yield sleep(2);
+        sleep(2);
+        
+        return null;
     }
 
-    protected function run(): Generator
+    protected function run(): mixed
     {
         $duration = $this->config['game_duration'];
         $startTime = time();
@@ -129,14 +130,16 @@ class FullFeaturedGameRoom extends Room
                 $this->triggerRandomEvent();
             }
 
-            yield sleep(1);
+                sleep(1);
         }
 
         // 游戏结束
         $this->gameEnd();
         
-        yield sleep(2);
-        yield from $this->destroy();
+        sleep(2);
+        $this->destroy();
+        
+        return null;
     }
 
     private function triggerRandomEvent(): void
@@ -189,7 +192,7 @@ class FullFeaturedGameRoom extends Room
         ]);
     }
 
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         LoggerFactory::debug("Player message", [
             'room_id' => $this->id,
@@ -208,15 +211,16 @@ class FullFeaturedGameRoom extends Room
                 ]);
                 break;
         }
-
-        yield;
+        
+        return null;
     }
 
-    protected function onDestroy(): Generator
+    protected function onDestroy(): mixed
     {
         LoggerFactory::info("Destroying room", ['room_id' => $this->id]);
         $this->stateManager->deleteRoomState($this->id);
-        yield;
+        
+        return null;
     }
 }
 

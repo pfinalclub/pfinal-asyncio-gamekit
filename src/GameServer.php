@@ -122,7 +122,7 @@ class GameServer
             $room = $this->roomManager->getPlayerRoom($player);
             if ($room) {
                 \PfinalClub\Asyncio\create_task(
-                    $room->onPlayerMessage($player, $event, $payload)
+                    fn() => $room->onPlayerMessage($player, $event, $payload)
                 );
             }
 
