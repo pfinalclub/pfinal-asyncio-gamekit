@@ -15,6 +15,7 @@ class TestRoom extends Room
     protected function run(): mixed
     {
         // 空实现用于测试
+        return null;
     }
 }
 

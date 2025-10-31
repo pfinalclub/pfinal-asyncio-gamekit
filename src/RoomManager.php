@@ -82,6 +82,8 @@ class RoomManager
         }
 
         unset($this->rooms[$roomId]);
+        
+        return null;
     }
 
     /**

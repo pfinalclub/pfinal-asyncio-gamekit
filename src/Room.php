@@ -110,7 +110,7 @@ abstract class Room
 
         // 检查是否自动开始
         if (($this->config['auto_start'] ?? false) && $this->canStart()) {
-            create_task($this->start());
+            create_task(fn() => $this->start());
         }
 
         return true;
@@ -134,7 +134,7 @@ abstract class Room
 
         // 如果房间为空，销毁房间
         if (empty($this->players)) {
-            create_task($this->destroy());
+            create_task(fn() => $this->destroy());
         }
 
         return true;
@@ -188,6 +188,8 @@ abstract class Room
             sleep($delay);
         }
         $this->broadcast($event, $data);
+        
+        return null;
     }
 
     /**
@@ -267,6 +269,8 @@ abstract class Room
     protected function delay(float $seconds): mixed
     {
         sleep($seconds);
+        
+        return null;
     }
 
     /**
@@ -336,6 +340,7 @@ abstract class Room
     protected function onCreate(): mixed
     {
         // 子类可重写
+        return null;
     }
 
     /**
@@ -344,6 +349,7 @@ abstract class Room
     protected function onStart(): mixed
     {
         // 子类可重写
+        return null;
     }
 
     /**
@@ -357,6 +363,7 @@ abstract class Room
     protected function onDestroy(): mixed
     {
         // 子类可重写
+        return null;
     }
 
     /**
@@ -389,6 +396,7 @@ abstract class Room
     public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         // 子类可重写
+        return null;
     }
 
     /**
