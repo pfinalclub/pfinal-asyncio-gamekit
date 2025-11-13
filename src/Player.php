@@ -25,6 +25,9 @@ class Player
     
     /** @var bool 是否准备 */
     private bool $ready = false;
+    
+    /** @var bool|null 连接是否有效（缓存验证结果） */
+    private ?bool $hasValidConnection = null;
 
     /**
      * @param string $id 玩家ID
@@ -73,18 +76,50 @@ class Player
     /**
      * 发送消息给玩家
      * 
-     * @param string $event 事件名称
+     * @param string $event 事件名称（或预编码的完整消息）
      * @param mixed $data 数据
+     * @param bool $preEncoded 是否已预编码（用于广播优化）
+     * @return bool 发送是否成功
      */
-    public function send(string $event, mixed $data = null): void
+    public function send(string $event, mixed $data = null, bool $preEncoded = false): bool
     {
-        if ($this->connection && method_exists($this->connection, 'send')) {
-            $message = json_encode([
-                'event' => $event,
-                'data' => $data,
-                'timestamp' => microtime(true)
-            ]);
-            $this->connection->send($message);
+        // 延迟验证连接（只验证一次）
+        if ($this->hasValidConnection === null) {
+            $this->hasValidConnection = $this->connection && method_exists($this->connection, 'send');
+        }
+        
+        if (!$this->hasValidConnection) {
+            return false;
+        }
+        
+        try {
+            if ($preEncoded) {
+                // 如果已预编码，直接发送（$event 包含完整消息）
+                $message = $event;
+            } else {
+                $message = json_encode([
+                    'event' => $event,
+                    'data' => $data,
+                    'timestamp' => microtime(true)
+                ], JSON_THROW_ON_ERROR);
+            }
+            
+            $result = $this->connection->send($message);
+            
+            // 如果发送失败，标记连接无效
+            if ($result === false) {
+                $this->hasValidConnection = false;
+            }
+            
+            return $result !== false;
+        } catch (\JsonException $e) {
+            // JSON 编码失败
+            error_log("Failed to encode message for player {$this->id}: {$e->getMessage()}");
+            return false;
+        } catch (\Throwable $e) {
+            // 发送失败（连接可能已断开）
+            $this->hasValidConnection = false;
+            return false;
         }
     }
 

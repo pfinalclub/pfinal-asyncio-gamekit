@@ -9,25 +9,75 @@ pfinal-asyncio-gamekit/
 │   ├── Room.php                 # Room 基类
 │   ├── Player.php               # Player 类
 │   ├── RoomManager.php          # 房间管理器
-│   └── GameServer.php           # WebSocket 游戏服务器
+│   ├── GameServer.php           # WebSocket 游戏服务器
+│   ├── Exceptions/             # 异常处理
+│   │   ├── GameException.php
+│   │   ├── RoomException.php
+│   │   ├── PlayerException.php
+│   │   └── ServerException.php
+│   ├── Logger/                  # 日志系统
+│   │   ├── Logger.php
+│   │   ├── LoggerFactory.php
+│   │   ├── LogLevel.php
+│   │   ├── LogHandlerInterface.php
+│   │   ├── ConsoleLogHandler.php
+│   │   ├── FileLogHandler.php
+│   │   └── WorkermanLogHandler.php
+│   ├── Persistence/             # 状态持久化
+│   │   ├── PersistenceAdapterInterface.php
+│   │   ├── FileAdapter.php
+│   │   ├── RedisAdapter.php
+│   │   ├── MemoryAdapter.php
+│   │   └── RoomStateManager.php
+│   └── LoadBalance/             # 负载均衡
+│       ├── LoadBalancerInterface.php
+│       ├── RoundRobinBalancer.php
+│       ├── LeastConnectionsBalancer.php
+│       ├── WeightedBalancer.php
+│       └── RoomDistributor.php
 │
 ├── examples/                     # 示例代码
 │   ├── SimpleGame.php           # 简单倒计时游戏
 │   ├── CardGame.php             # 卡牌游戏示例
 │   ├── WebSocketServer.php      # WebSocket 服务器示例
+│   ├── AdvancedGame.php         # 高级特性示例
+│   ├── WorkermanAdvancedGame.php # Workerman 高级示例
 │   └── client.html              # 网页客户端示例
+│
+├── tests/                        # 单元测试
+│   ├── PlayerTest.php
+│   ├── RoomTest.php
+│   ├── RoomManagerTest.php
+│   └── Helpers/
+│       ├── TestRoom.php
+│       └── MockConnection.php
 │
 ├── docs/                         # 文档目录
 │   ├── GUIDE.md                 # 开发指南
-│   └── API.md                   # API 参考文档
+│   ├── API.md                   # API 参考文档
+│   ├── IMPROVEMENTS.md          # 改进说明
+│   ├── MIGRATION_V2.md          # v2.0 迁移指南
+│   ├── PRODUCTION_GUIDE.md      # 生产部署指南
+│   └── TESTING.md               # 测试指南
+│
+├── config/                       # 配置文件
+│   ├── logger.php               # 开发环境日志配置
+│   ├── logger.production.php    # 生产环境日志配置
+│   └── server.php               # 服务器配置
+│
+├── logs/                         # 日志目录
+├── storage/                      # 存储目录
+├── runtime/                      # 运行时目录
 │
 ├── composer.json                 # Composer 配置
+├── phpunit.xml                   # PHPUnit 配置
 ├── README.md                     # 项目说明
 ├── CHANGELOG.md                  # 更新日志
+├── CONTRIBUTING.md               # 贡献指南
+├── INSTALL.md                    # 安装说明
+├── PROJECT_STRUCTURE.md          # 项目结构说明（本文件）
 ├── LICENSE                       # MIT 许可证
-├── .gitignore                    # Git 忽略文件
-├── start.sh                      # Linux/Mac 启动脚本
-└── start.bat                     # Windows 启动脚本
+└── VERSION                       # 版本号文件
 ```
 
 ## 🎯 核心文件说明
@@ -133,6 +183,32 @@ php examples/WebSocketServer.php
 - 实时消息显示
 - 游戏交互
 
+### examples/AdvancedGame.php
+
+**高级特性示例**
+
+展示新特性的使用：
+- 日志系统
+- 异常处理
+- 状态持久化
+- 负载均衡
+
+**运行：**
+```bash
+php examples/AdvancedGame.php
+```
+
+### examples/WorkermanAdvancedGame.php
+
+**Workerman 高级示例**
+
+展示在 Workerman 环境中使用高级特性。
+
+**运行：**
+```bash
+php examples/WorkermanAdvancedGame.php
+```
+
 ## 📖 文档说明
 
 ### docs/GUIDE.md
@@ -157,6 +233,35 @@ php examples/WebSocketServer.php
 - RoomManager 类完整 API
 - GameServer 类完整 API
 
+### docs/IMPROVEMENTS.md
+
+**改进说明文档**
+
+详细说明新增的高级特性：
+- 单元测试框架
+- 异常处理系统
+- 日志系统
+- 状态持久化
+- 负载均衡
+
+### docs/MIGRATION_V2.md
+
+**v2.0 迁移指南**
+
+从 v1.x (Generator) 迁移到 v2.0 (Fiber) 的详细指南。
+
+### docs/PRODUCTION_GUIDE.md
+
+**生产部署指南**
+
+生产环境部署的最佳实践和配置建议。
+
+### docs/TESTING.md
+
+**测试指南**
+
+单元测试的使用方法和最佳实践。
+
 ## 🚀 快速开始
 
 ### 1. 安装依赖
@@ -167,17 +272,7 @@ composer install
 
 ### 2. 运行示例
 
-**Linux/Mac:**
-```bash
-./start.sh
-```
-
-**Windows:**
-```bash
-start.bat
-```
-
-或者直接运行：
+直接运行示例文件：
 ```bash
 php examples/SimpleGame.php
 ```
@@ -187,24 +282,52 @@ php examples/SimpleGame.php
 ```php
 <?php
 use PfinalClub\AsyncioGamekit\Room;
-use Generator;
+use function PfinalClub\Asyncio\{run, sleep};
 
 class MyGame extends Room
 {
-    protected function run(): Generator
+    protected function run(): mixed
     {
         // 你的游戏逻辑
         $this->broadcast('game:start', []);
-        yield sleep(10);
-        yield from $this->destroy();
+        sleep(10);
+        $this->destroy();
     }
 }
+
+function main(): mixed
+{
+    $room = new MyGame('room_001');
+    $room->start();
+}
+
+run(main(...));
 ```
 
 ## 🔧 核心依赖
 
-- **pfinalclub/asyncio** - 异步 IO 框架
-- **workerman/workerman** - PHP 异步框架
+- **pfinalclub/asyncio** (^2.1) - 异步 IO 框架（基于 PHP Fiber，性能拉满）
+- **workerman/workerman** (^4.1) - PHP 异步框架
+- **workerman/gateway-worker** (^3.0) - Gateway Worker
+- **workerman/channel** (^1.1) - 进程间通信
+- **phpunit/phpunit** (^10.0) - 单元测试框架（开发依赖）
+
+## 🧪 测试
+
+项目包含完整的单元测试：
+
+```bash
+# 运行所有测试
+composer test
+
+# 生成覆盖率报告
+composer test-coverage
+```
+
+测试覆盖：
+- Player 类：数据管理、准备状态、序列化
+- Room 类：玩家管理、生命周期、配置
+- RoomManager 类：房间创建、加入/离开、快速匹配
 
 ## 📝 许可证
 
@@ -222,4 +345,5 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 ---
 
 **开始你的异步游戏开发之旅吧！** 🎮🚀
+
 

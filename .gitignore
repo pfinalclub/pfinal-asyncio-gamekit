@@ -30,6 +30,10 @@ Thumbs.db
 /coverage/
 .phpunit.result.cache
 
+# Performance Test Results
+performance_comparison_*.json
+performance_results_*.json
+
 # Environment
 .env
 .env.local

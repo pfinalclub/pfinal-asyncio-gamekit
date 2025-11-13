@@ -5,7 +5,7 @@ namespace PfinalClub\AsyncioGamekit\Logger;
 /**
  * 日志记录器
  */
-class Logger
+class Logger implements LoggerInterface
 {
     private string $minLevel;
     private array $handlers = [];

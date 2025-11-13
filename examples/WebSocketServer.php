@@ -29,7 +29,7 @@ class GuessNumberRoom extends Room
         ];
     }
 
-    protected function onStart(): Generator
+    protected function onStart(): mixed
     {
         // 生成目标数字
         $this->targetNumber = rand($this->minNumber, $this->maxNumber);
@@ -42,10 +42,11 @@ class GuessNumberRoom extends Room
             'time_limit' => $this->config['time_limit']
         ]);
         
-        yield sleep(1);
+        sleep(1);
+        return null;
     }
 
-    protected function run(): Generator
+    protected function run(): mixed
     {
         $timeLimit = $this->config['time_limit'];
         $startTime = time();
@@ -67,7 +68,7 @@ class GuessNumberRoom extends Room
 
         // 等待游戏结束或超时
         while (!$gameEnded && (time() - $startTime) < $timeLimit) {
-            yield sleep(1);
+            sleep(1);
             
             if ($this->get('game_ended', false)) {
                 $gameEnded = true;
@@ -82,11 +83,12 @@ class GuessNumberRoom extends Room
             ]);
         }
 
-        yield sleep(3);
-        yield from $this->destroy();
+        sleep(3);
+        $this->destroy();
+        return null;
     }
 
-    public function onPlayerMessage(Player $player, string $event, mixed $data): Generator
+    public function onPlayerMessage(Player $player, string $event, mixed $data): mixed
     {
         if ($event === 'guess' && $this->status === 'running') {
             $guess = (int)($data['number'] ?? 0);
@@ -122,7 +124,7 @@ class GuessNumberRoom extends Room
                 ], $player);
             }
         }
-        yield;
+        return null;
     }
 
     protected function onPlayerJoin(Player $player): void

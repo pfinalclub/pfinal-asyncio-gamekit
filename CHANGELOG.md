@@ -2,6 +2,87 @@
 
 本项目的所有重要更改都会记录在此文件中。
 
+## [2.0.1] - 2025-01-XX
+
+### 升级 ⬆️
+
+- **pfinalclub/asyncio**: ^2.0 → ^2.1
+- 性能直接拉满，充分利用 asyncio 2.1 的性能优化
+
+### 修复 🐛
+
+- 修复 `examples/WebSocketServer.php` 中的 Generator 语法，更新为 Fiber 语法以兼容 asyncio 2.1
+  - `onStart()`: `Generator` → `mixed`，移除 `yield sleep(1)`
+  - `run()`: `Generator` → `mixed`，移除 `yield sleep()` 和 `yield from`
+  - `onPlayerMessage()`: `Generator` → `mixed`，移除 `yield`
+- 修复 `Room::broadcast()` 在测试环境中误移除玩家的问题
+  - 区分"没有连接"和"连接失败"两种情况
+  - 只有真正的连接失败才会移除玩家
+  - 兼容测试环境中的 null 连接
+
+### 优化 ⚡
+
+#### 高优先级优化
+
+- **Room::broadcast()** - 连接健康检查与错误处理
+  - 自动检测连接失效并移除断线玩家
+  - 避免向无效连接发送消息
+  - 提升广播可靠性
+
+- **RoomManager** - 房间自动清理机制
+  - 新增 `cleanupFinishedRooms()` 方法，自动清理已结束的房间
+  - 可配置清理间隔（默认 5 分钟）
+  - 异步销毁房间，避免阻塞主流程
+  - 防止内存泄漏
+
+#### 中优先级优化
+
+- **Player::send()** - 完善错误处理
+  - 返回 bool 表示发送是否成功
+  - 捕获 JSON 编码异常
+  - 捕获连接发送失败异常
+
+- **RoomManager::findAvailableRoom()** - 性能优化
+  - 使用 `instanceof` 替代 `get_class()` 判断
+  - 直接调用 `getMaxPlayers()` 避免 `toArray()` 开销
+  - 提升房间查找效率
+
+- **Room::toArray()** - 性能优化
+  - 添加 `$includePlayers` 参数，可选择不序列化玩家
+  - 新增 `toArrayLight()` 轻量级方法，只返回基础信息
+  - 减少不必要的数据序列化开销
+
+- **Room::destroy()** - 完善清理机制
+  - 添加 try-catch 保护 `onDestroy()` 调用
+  - 确保定时器清理即使出错也能继续
+  - 清理自定义数据，防止内存泄漏
+  - 更完善的资源释放
+
+- **Room::handleRoomError()** - 智能错误恢复
+  - 区分 RoomException 和严重错误
+  - RoomException 通知玩家可恢复
+  - 严重错误时自动安全关闭房间
+  - 延迟销毁给玩家接收错误消息的时间
+
+### 新增 ✨
+
+- **Room::getMaxPlayers()** - 获取最大玩家数
+- **Room::getConfig()** - 获取房间配置
+- **RoomManager::setCleanupInterval()** - 设置清理间隔
+- **RoomManager::getCleanupInterval()** - 获取清理间隔
+
+### 受益 🚀
+
+- 性能进一步提升，充分利用 asyncio 2.1 的性能优化
+- 更好的事件循环性能
+- 更强的并发处理能力
+- 所有示例代码已完全兼容 asyncio 2.1
+- 更健壮的错误处理和恢复机制
+- 自动内存管理，防止内存泄漏
+- 更高效的房间查找和数据序列化
+
+---
+
 ## [2.0.0] - 2025-01-XX
 
 ### 重大变更 💥

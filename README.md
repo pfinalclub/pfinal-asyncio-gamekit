@@ -47,7 +47,7 @@ composer require pfinalclub/asyncio-gamekit
 ## 📋 要求
 
 - PHP >= 8.1
-- pfinalclub/asyncio >= 2.0
+- pfinalclub/asyncio >= 2.1
 - workerman/workerman >= 4.1
 
 ## 🚀 快速开始
