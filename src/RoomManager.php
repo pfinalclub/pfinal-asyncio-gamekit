@@ -28,6 +28,9 @@ class RoomManager
     /** @var array<string, array<string, array<string, Room>>> 按类名和状态分组的房间索引 */
     private array $roomIndex = [];
     
+    /** @var array<string, array<string, Room>> 未满房间索引（O(1)查找） - 按类名 -> 房间ID -> Room */
+    private array $availableRoomIndex = [];
+    
     /** @var MemoryManagerInterface 内存管理器 */
     private MemoryManagerInterface $memoryManager;
     
@@ -104,6 +107,9 @@ class RoomManager
         
         // 添加到索引（新房间默认为 waiting 状态）
         $this->addToIndex($roomClass, 'waiting', $roomId, $room);
+        
+        // 【性能优化】添加到未满房间索引（新房间默认未满）
+        $this->addToAvailableIndex($roomClass, $roomId, $room);
         
         // 更新实时统计
         $this->stats['total_rooms']++;
@@ -187,6 +193,10 @@ class RoomManager
         try {
             if ($room->addPlayer($player)) {
                 $this->playerRoomMap[$player->getId()] = $roomId;
+                
+                // 【性能优化】玩家加入后，检查房间是否还有空位
+                $this->updateRoomAvailability($room);
+                
                 return true;
             }
         } catch (RoomException $e) {
@@ -212,6 +222,9 @@ class RoomManager
 
         if ($room) {
             $room->removePlayer($playerId);
+            
+            // 【性能优化】玩家离开后，房间可能重新变为未满
+            $this->updateRoomAvailability($room);
         }
 
         unset($this->playerRoomMap[$playerId]);
@@ -234,19 +247,20 @@ class RoomManager
 
     /**
      * 查找可用房间（有空位且未开始）
+     * 
+     * 【性能优化】使用专用索引，从 O(n) 优化到 O(1)
      */
     public function findAvailableRoom(string $roomClass): ?Room
     {
-        // 使用索引快速查找 waiting 状态的房间
-        $waitingRooms = $this->roomIndex[$roomClass]['waiting'] ?? [];
+        // 【关键优化】直接从未满房间索引中获取，O(1) 复杂度
+        $availableRooms = $this->availableRoomIndex[$roomClass] ?? [];
         
-        foreach ($waitingRooms as $room) {
-            if ($room->getPlayerCount() < $room->getMaxPlayers()) {
-                return $room;
-            }
+        if (empty($availableRooms)) {
+            return null;
         }
         
-        return null;
+        // 返回第一个未满房间
+        return reset($availableRooms);
     }
 
     /**
@@ -385,6 +399,46 @@ class RoomManager
     }
     
     /**
+     * 【性能优化】添加房间到未满索引
+     */
+    private function addToAvailableIndex(string $roomClass, string $roomId, Room $room): void
+    {
+        if (!isset($this->availableRoomIndex[$roomClass])) {
+            $this->availableRoomIndex[$roomClass] = [];
+        }
+        $this->availableRoomIndex[$roomClass][$roomId] = $room;
+    }
+    
+    /**
+     * 【性能优化】从未满索引中移除房间
+     */
+    private function removeFromAvailableIndex(string $roomClass, string $roomId): void
+    {
+        unset($this->availableRoomIndex[$roomClass][$roomId]);
+    }
+    
+    /**
+     * 【性能优化】检查并更新房间的未满索引状态
+     * 当玩家加入/离开房间时调用
+     */
+    public function updateRoomAvailability(Room $room): void
+    {
+        $roomClass = get_class($room);
+        $roomId = $room->getId();
+        $isFull = $room->getPlayerCount() >= $room->getMaxPlayers();
+        $isRunning = $room->getStatus() === 'running';
+        
+        // 只有 waiting 状态且未满的房间才在未满索引中
+        if ($isRunning || $isFull) {
+            // 房间已满或已开始，从未满索引中移除
+            $this->removeFromAvailableIndex($roomClass, $roomId);
+        } else {
+            // 房间未满且在waiting状态，加入未满索引
+            $this->addToAvailableIndex($roomClass, $roomId, $room);
+        }
+    }
+    
+    /**
      * 更新房间在索引中的状态
      * 
      * @param Room $room 房间对象
@@ -398,6 +452,9 @@ class RoomManager
         
         $this->removeFromIndex($roomClass, $oldStatus, $roomId);
         $this->addToIndex($roomClass, $newStatus, $roomId, $room);
+        
+        // 【性能优化】状态变化时也更新未满索引
+        $this->updateRoomAvailability($room);
         
         // 更新实时统计（状态变化）
         if (isset($this->stats['rooms_by_status'][$oldStatus])) {

@@ -37,3 +37,5 @@ performance_results_*.json
 # Environment
 .env
 .env.local
+P0_PERFORMANCE_OPTIMIZATIONS_SUMMARY.md
+PERFORMANCE_OPTIMIZATION_RECOMMENDATIONS.md

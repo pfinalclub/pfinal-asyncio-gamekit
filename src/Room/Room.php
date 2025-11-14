@@ -46,9 +46,15 @@ abstract class Room implements RoomInterface
 
     /** @var array|null 缓存的轻量级数组表示 */
     private ?array $cachedArrayLight = null;
+    
+    /** @var array|null 【性能优化】缓存的玩家列表序列化结果 */
+    private ?array $cachedPlayersList = null;
 
     /** @var bool 数据是否已修改（脏标记） */
     private bool $isDirty = true;
+    
+    /** @var bool 【性能优化】玩家列表是否已修改（脏标记） */
+    private bool $isPlayersListDirty = true;
 
     /**
      * @param string $id 房间ID
@@ -187,6 +193,19 @@ abstract class Room implements RoomInterface
         $this->cachedArrayFull = null;
         $this->cachedArrayNoPlayers = null;
         $this->cachedArrayLight = null;
+        // 玩家列表不在此处失效，有专门的方法
+    }
+    
+    /**
+     * 【性能优化】清除玩家列表缓存（当玩家加入/离开时调用）
+     */
+    public function invalidatePlayersListCache(): void
+    {
+        $this->isPlayersListDirty = true;
+        $this->cachedPlayersList = null;
+        // 玩家列表变化也会影响完整数组缓存
+        $this->cachedArrayFull = null;
+        $this->cachedArrayLight = null;
     }
 
     /**
@@ -202,13 +221,14 @@ abstract class Room implements RoomInterface
                 return $this->cachedArrayFull;
             }
             
+            // 【性能优化】使用独立缓存的玩家列表
             $this->cachedArrayFull = [
                 'id' => $this->id,
                 'status' => $this->status,
                 'player_count' => count($this->players),
                 'config' => $this->config,
                 'data' => $this->data,
-                'players' => array_map(fn($p) => $p->toArray(), $this->players)
+                'players' => $this->getPlayersArray() // 使用缓存方法
             ];
             
             $this->isDirty = false;
@@ -230,6 +250,24 @@ abstract class Room implements RoomInterface
             $this->isDirty = false;
             return $this->cachedArrayNoPlayers;
         }
+    }
+    
+    /**
+     * 【性能优化】获取玩家列表的序列化结果（带缓存）
+     * 
+     * 避免重复序列化玩家列表，尤其在频繁调用 toArray() 时
+     */
+    private function getPlayersArray(): array
+    {
+        if (!$this->isPlayersListDirty && $this->cachedPlayersList !== null) {
+            return $this->cachedPlayersList;
+        }
+        
+        // 序列化所有玩家
+        $this->cachedPlayersList = array_map(fn($p) => $p->toArray(), $this->players);
+        $this->isPlayersListDirty = false;
+        
+        return $this->cachedPlayersList;
     }
 
     /**

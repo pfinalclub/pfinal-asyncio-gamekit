@@ -41,8 +41,8 @@ trait PlayerManagement
         $this->players[$player->getId()] = $player;
         $player->setRoom($this);
 
-        // 清除缓存（玩家列表已变化）
-        $this->invalidateCache();
+        // 【性能优化】清除玩家列表缓存（不影响其他缓存）
+        $this->invalidatePlayersListCache();
 
         // 通知观察者
         $this->notifyPlayerJoined($player->getId());
@@ -71,8 +71,8 @@ trait PlayerManagement
         unset($this->players[$playerId]);
         $player->setRoom(null);
 
-        // 清除缓存（玩家列表已变化）
-        $this->invalidateCache();
+        // 【性能优化】清除玩家列表缓存（不影响其他缓存）
+        $this->invalidatePlayersListCache();
 
         // 通知观察者
         $this->notifyPlayerLeft($playerId);
