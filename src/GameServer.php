@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit;
 
 use Workerman\Worker;
@@ -7,6 +8,8 @@ use Workerman\Connection\TcpConnection;
 use PfinalClub\AsyncioGamekit\Exceptions\{GameException, RoomException, ServerException};
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use PfinalClub\AsyncioGamekit\RateLimit\{RateLimiterInterface, TokenBucketLimiter};
+use PfinalClub\AsyncioGamekit\Security\{MessageSigner, InputValidator};
+use PfinalClub\AsyncioGamekit\Constants\GameEvents;
 
 /**
  * GameServer 游戏服务器
@@ -32,6 +35,15 @@ class GameServer
     /** @var RateLimiterInterface 限流器 */
     protected RateLimiterInterface $rateLimiter;
 
+    /** @var InputValidator 输入验证器 */
+    protected InputValidator $inputValidator;
+
+    /** @var MessageSigner|null 消息签名器（可选） */
+    protected ?MessageSigner $messageSigner = null;
+
+    /** @var bool 是否启用消息签名 */
+    protected bool $signatureRequired = false;
+
     /**
      * @param string $host 监听地址
      * @param int $port 监听端口
@@ -50,6 +62,15 @@ class GameServer
         
         // 初始化限流器
         $this->rateLimiter = $config['rate_limiter'] ?? new TokenBucketLimiter();
+
+        // 初始化输入验证器
+        $this->inputValidator = $config['input_validator'] ?? new InputValidator();
+
+        // 初始化消息签名器（可选）
+        if (isset($config['message_signature_secret'])) {
+            $this->messageSigner = new MessageSigner($config['message_signature_secret']);
+            $this->signatureRequired = $config['signature_required'] ?? false;
+        }
 
         $protocol = $this->config['protocol'];
         $this->worker = new Worker("{$protocol}://{$host}:{$port}");
@@ -103,7 +124,7 @@ class GameServer
         ]);
         
         // 发送欢迎消息
-        $player->send('connected', [
+        $player->send(GameEvents::CONNECTED, [
             'player_id' => $playerId,
             'server_time' => microtime(true)
         ]);
@@ -127,7 +148,7 @@ class GameServer
                 'player_name' => $player->getName(),
             ]);
             
-            $player->send('error', [
+            $player->send(GameEvents::ERROR, [
                 'message' => 'Too many requests. Please slow down.',
                 'code' => 'RATE_LIMIT_EXCEEDED'
             ]);
@@ -135,9 +156,23 @@ class GameServer
         }
 
         try {
-            $message = json_decode($data, true);
-            if (!$message || !isset($message['event'])) {
-                throw ServerException::invalidMessageFormat($data);
+            // 使用输入验证器验证消息
+            $message = $this->inputValidator->validateMessage($data);
+
+            // 如果启用了签名验证
+            if ($this->signatureRequired && $this->messageSigner) {
+                if (!$this->messageSigner->verifyMessage($message)) {
+                    LoggerFactory::warning("Invalid message signature", [
+                        'player_id' => $playerId,
+                        'player_name' => $player->getName(),
+                    ]);
+                    
+                    $player->send(GameEvents::ERROR, [
+                        'message' => 'Invalid message signature',
+                        'code' => 'INVALID_SIGNATURE'
+                    ]);
+                    return;
+                }
             }
 
             $event = $message['event'];
@@ -156,7 +191,7 @@ class GameServer
 
         } catch (GameException $e) {
             // 游戏框架异常
-            $player->send('error', [
+            $player->send(GameEvents::ERROR, [
                 'message' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'context' => $e->getContext()
@@ -164,7 +199,7 @@ class GameServer
             $this->logError($e);
         } catch (\Throwable $e) {
             // 其他异常
-            $player->send('error', ['message' => 'Internal server error']);
+            $player->send(GameEvents::ERROR, ['message' => 'Internal server error']);
             $this->logError($e);
         }
     }
@@ -177,36 +212,36 @@ class GameServer
     protected function handleSystemEvent(Player $player, string $event, mixed $data): void
     {
         switch ($event) {
-            case 'set_name':
+            case GameEvents::SET_NAME:
                 $name = $data['name'] ?? 'Anonymous';
-                // 限制名称长度
-                $name = mb_substr($name, 0, 32);
+                // 使用输入验证器清理名称
+                $name = $this->inputValidator->sanitizePlayerName($name);
                 $player->setName($name);
-                $player->send('name_set', ['name' => $player->getName()]);
+                $player->send(GameEvents::NAME_SET, ['name' => $player->getName()]);
                 break;
 
-            case 'create_room':
+            case GameEvents::CREATE_ROOM:
                 $roomClass = $data['room_class'] ?? null;
                 $config = $data['config'] ?? [];
                 
                 // 验证房间类
                 if (!$this->isRoomClassAllowed($roomClass)) {
-                    $player->send('error', [
+                    $player->send(GameEvents::ERROR, [
                         'message' => 'Invalid or not allowed room class',
                         'code' => 'INVALID_ROOM_CLASS'
                     ]);
                     return;
                 }
                 
-                // 清理和验证配置
-                $config = $this->sanitizeRoomConfig($config);
+                // 使用输入验证器清理配置
+                $config = $this->inputValidator->sanitizeRoomConfig($config);
                 
                 try {
                     $room = $this->roomManager->createRoom($roomClass, null, $config);
                     $this->roomManager->joinRoom($player, $room->getId());
-                    $player->send('room_created', $room->toArray());
+                    $player->send(GameEvents::ROOM_CREATED, $room->toArray());
                 } catch (\Throwable $e) {
-                    $player->send('error', [
+                    $player->send(GameEvents::ERROR, [
                         'message' => 'Failed to create room',
                         'code' => 'CREATE_ROOM_FAILED'
                     ]);
@@ -214,15 +249,15 @@ class GameServer
                 }
                 break;
 
-            case 'join_room':
+            case GameEvents::JOIN_ROOM:
                 $roomId = $data['room_id'] ?? null;
                 if ($roomId) {
                     try {
                         $this->roomManager->joinRoom($player, $roomId);
                         $room = $this->roomManager->getRoom($roomId);
-                        $player->send('room_joined', $room->toArray());
+                        $player->send(GameEvents::ROOM_JOINED, $room->toArray());
                     } catch (RoomException $e) {
-                        $player->send('error', [
+                        $player->send(GameEvents::ERROR, [
                             'message' => $e->getMessage(),
                             'code' => $e->getCode()
                         ]);
@@ -230,32 +265,32 @@ class GameServer
                 }
                 break;
 
-            case 'leave_room':
+            case GameEvents::LEAVE_ROOM:
                 $this->roomManager->leaveRoom($player);
-                $player->send('room_left', []);
+                $player->send(GameEvents::ROOM_LEFT, []);
                 break;
 
-            case 'quick_match':
+            case GameEvents::QUICK_MATCH:
                 $roomClass = $data['room_class'] ?? null;
                 $config = $data['config'] ?? [];
                 
                 // 验证房间类
                 if (!$this->isRoomClassAllowed($roomClass)) {
-                    $player->send('error', [
+                    $player->send(GameEvents::ERROR, [
                         'message' => 'Invalid or not allowed room class',
                         'code' => 'INVALID_ROOM_CLASS'
                     ]);
                     return;
                 }
                 
-                // 清理和验证配置
-                $config = $this->sanitizeRoomConfig($config);
+                // 使用输入验证器清理配置
+                $config = $this->inputValidator->sanitizeRoomConfig($config);
                 
                 try {
                     $room = $this->roomManager->quickMatch($player, $roomClass, $config);
-                    $player->send('matched', $room->toArray());
+                    $player->send(GameEvents::MATCHED, $room->toArray());
                 } catch (\Throwable $e) {
-                    $player->send('error', [
+                    $player->send(GameEvents::ERROR, [
                         'message' => 'Quick match failed',
                         'code' => 'QUICK_MATCH_FAILED'
                     ]);
@@ -263,14 +298,14 @@ class GameServer
                 }
                 break;
 
-            case 'get_rooms':
+            case GameEvents::GET_ROOMS:
                 // 使用轻量级版本提高性能
                 $rooms = array_map(fn($r) => $r->toArrayLight(), $this->roomManager->getRooms());
-                $player->send('rooms_list', ['rooms' => array_values($rooms)]);
+                $player->send(GameEvents::ROOMS_LIST, ['rooms' => array_values($rooms)]);
                 break;
 
-            case 'get_stats':
-                $player->send('stats', $this->roomManager->getStats());
+            case GameEvents::GET_STATS:
+                $player->send(GameEvents::STATS, $this->roomManager->getStats());
                 break;
         }
     }
@@ -361,34 +396,19 @@ class GameServer
     }
     
     /**
-     * 清理和验证房间配置
-     * 
-     * @param array $config 原始配置
-     * @return array 清理后的配置
+     * 获取输入验证器
      */
-    protected function sanitizeRoomConfig(array $config): array
+    public function getInputValidator(): InputValidator
     {
-        $allowed = ['max_players', 'min_players', 'auto_start'];
-        $sanitized = [];
-        
-        foreach ($allowed as $key) {
-            if (isset($config[$key])) {
-                $sanitized[$key] = $config[$key];
-            }
-        }
-        
-        // 限制玩家数量范围
-        if (isset($sanitized['max_players'])) {
-            $sanitized['max_players'] = max(2, min(100, (int)$sanitized['max_players']));
-        }
-        if (isset($sanitized['min_players'])) {
-            $sanitized['min_players'] = max(1, min(100, (int)$sanitized['min_players']));
-        }
-        if (isset($sanitized['auto_start'])) {
-            $sanitized['auto_start'] = (bool)$sanitized['auto_start'];
-        }
-        
-        return $sanitized;
+        return $this->inputValidator;
+    }
+
+    /**
+     * 获取消息签名器
+     */
+    public function getMessageSigner(): ?MessageSigner
+    {
+        return $this->messageSigner;
     }
 }
 

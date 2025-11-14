@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Middleware;
 
 use PfinalClub\AsyncioGamekit\Player;

@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PfinalClub\AsyncioGamekit\Permission;
 
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Room\Room;
+use PfinalClub\AsyncioGamekit\Exceptions\PermissionException;
 
 /**
  * 权限管理器
@@ -79,14 +82,12 @@ class PermissionManager
     /**
      * 确保玩家有权限，否则抛出异常
      * 
-     * @throws \RuntimeException
+     * @throws PermissionException
      */
     public function requirePermission(Player $player, string $permission): void
     {
         if (!$this->hasPermission($player, $permission)) {
-            throw new \RuntimeException(
-                "Player {$player->getName()} does not have permission: {$permission}"
-            );
+            throw PermissionException::denied($player->getId(), $permission);
         }
     }
 

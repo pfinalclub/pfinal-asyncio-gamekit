@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Room\Traits;
 
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
@@ -31,6 +32,10 @@ trait LifecycleManagement
     protected function setStatus(string $status): void
     {
         $this->status = $status;
+        
+        // 清除缓存（状态已变化）
+        $this->invalidateCache();
+        
         $this->broadcast('room:status_changed', [
             'status' => $status,
             'room_id' => $this->id

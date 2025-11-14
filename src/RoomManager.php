@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit;
 
-use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
+use PfinalClub\AsyncioGamekit\Exceptions\{RoomException, ManagerException};
 use PfinalClub\AsyncioGamekit\Memory\{MemoryManager, MemoryManagerInterface};
 
 /**
@@ -32,6 +33,16 @@ class RoomManager
     /** @var int 最大房间数 */
     private int $maxRooms = 1000;
 
+    /** @var array 实时统计信息 */
+    private array $stats = [
+        'total_rooms' => 0,
+        'rooms_by_status' => [
+            'waiting' => 0,
+            'running' => 0,
+            'finished' => 0,
+        ],
+    ];
+
     /**
      * 构造函数
      */
@@ -58,7 +69,7 @@ class RoomManager
             
             // 如果还是超限，抛出异常
             if (count($this->rooms) >= $this->maxRooms) {
-                throw new \RuntimeException("Max rooms limit ({$this->maxRooms}) reached");
+                throw ManagerException::maxLimitReached('rooms', $this->maxRooms);
             }
         }
 
@@ -73,11 +84,11 @@ class RoomManager
         }
 
         if (isset($this->rooms[$roomId])) {
-            throw new \RuntimeException("Room {$roomId} already exists");
+            throw ManagerException::resourceAlreadyExists('Room', $roomId);
         }
 
         if (!is_subclass_of($roomClass, Room::class)) {
-            throw new \InvalidArgumentException("$roomClass must extend " . Room::class);
+            throw ManagerException::invalidArgument('roomClass', "$roomClass must extend " . Room::class);
         }
 
         $room = new $roomClass($roomId, $config);
@@ -85,6 +96,10 @@ class RoomManager
         
         // 添加到索引（新房间默认为 waiting 状态）
         $this->addToIndex($roomClass, 'waiting', $roomId, $room);
+        
+        // 更新实时统计
+        $this->stats['total_rooms']++;
+        $this->stats['rooms_by_status']['waiting']++;
 
         return $room;
     }
@@ -130,6 +145,12 @@ class RoomManager
         $roomClass = get_class($room);
         $status = $room->getStatus();
         $this->removeFromIndex($roomClass, $status, $roomId);
+
+        // 更新实时统计
+        $this->stats['total_rooms']--;
+        if (isset($this->stats['rooms_by_status'][$status])) {
+            $this->stats['rooms_by_status'][$status]--;
+        }
 
         // 清理 finished 记录
         unset($this->finishedRooms[$roomId]);
@@ -239,30 +260,17 @@ class RoomManager
     }
 
     /**
-     * 获取房间统计信息
+     * 获取房间统计信息（实时维护，O(1) 复杂度）
      */
     public function getStats(): array
     {
-        $stats = [
-            'total_rooms' => count($this->rooms),
+        return [
+            'total_rooms' => $this->stats['total_rooms'],
             'total_players' => count($this->playerRoomMap),
             'max_rooms' => $this->maxRooms,
-            'rooms_by_status' => [
-                'waiting' => 0,
-                'running' => 0,
-                'finished' => 0,
-            ],
+            'rooms_by_status' => $this->stats['rooms_by_status'],
             'memory' => $this->memoryManager->getStats(),
         ];
-
-        foreach ($this->rooms as $room) {
-            $status = $room->getStatus();
-            if (isset($stats['rooms_by_status'][$status])) {
-                $stats['rooms_by_status'][$status]++;
-            }
-        }
-
-        return $stats;
     }
     
     /**
@@ -382,6 +390,17 @@ class RoomManager
         
         $this->removeFromIndex($roomClass, $oldStatus, $roomId);
         $this->addToIndex($roomClass, $newStatus, $roomId, $room);
+        
+        // 更新实时统计（状态变化）
+        if (isset($this->stats['rooms_by_status'][$oldStatus])) {
+            $this->stats['rooms_by_status'][$oldStatus]--;
+        }
+        if (isset($this->stats['rooms_by_status'][$newStatus])) {
+            $this->stats['rooms_by_status'][$newStatus]++;
+        } else {
+            // 如果是新的状态，初始化计数
+            $this->stats['rooms_by_status'][$newStatus] = 1;
+        }
     }
 }
 

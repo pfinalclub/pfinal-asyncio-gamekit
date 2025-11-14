@@ -45,7 +45,7 @@ class RoomManagerTest extends TestCase
 
     public function testCreateDuplicateRoom(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(\PfinalClub\AsyncioGamekit\Exceptions\ManagerException::class);
         $this->expectExceptionMessage('Room room_001 already exists');
 
         $this->manager->createRoom(TestRoom::class, 'room_001');
@@ -54,7 +54,7 @@ class RoomManagerTest extends TestCase
 
     public function testCreateRoomWithInvalidClass(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\PfinalClub\AsyncioGamekit\Exceptions\ManagerException::class);
 
         $this->manager->createRoom(\stdClass::class, 'room_001');
     }

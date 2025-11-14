@@ -1,6 +1,10 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Logger;
+
+use PfinalClub\AsyncioGamekit\Config\ConfigInterface;
+use PfinalClub\AsyncioGamekit\Config\Config;
 
 /**
  * 日志工厂类
@@ -8,14 +12,20 @@ namespace PfinalClub\AsyncioGamekit\Logger;
 class LoggerFactory
 {
     private static ?Logger $instance = null;
-    private static array $config = [];
+    private static ConfigInterface $config;
+    
+
 
     /**
      * 配置日志系统
      */
-    public static function configure(array $config): void
+    public static function configure(array|ConfigInterface $config): void
     {
-        self::$config = $config;
+        if (is_array($config)) {
+            self::$config = new Config($config);
+        } else {
+            self::$config = $config;
+        }
         self::$instance = null; // 重置实例
     }
 
@@ -24,6 +34,11 @@ class LoggerFactory
      */
     public static function getInstance(): Logger
     {
+        // 确保配置已初始化
+        if (!isset(self::$config)) {
+            self::configure([]);
+        }
+        
         if (self::$instance === null) {
             self::$instance = self::createLogger();
         }
@@ -35,22 +50,22 @@ class LoggerFactory
      */
     private static function createLogger(): Logger
     {
-        $minLevel = self::$config['min_level'] ?? LogLevel::INFO;
+        $minLevel = self::$config->get('min_level', LogLevel::INFO);
         $handlers = [];
 
         // 添加控制台处理器
-        if (self::$config['console']['enabled'] ?? true) {
+        if (self::$config->get('console.enabled', true)) {
             $handlers[] = new ConsoleLogHandler(
-                self::$config['console']['color'] ?? true
+                self::$config->get('console.color', true)
             );
         }
 
         // 添加文件处理器
-        if (self::$config['file']['enabled'] ?? false) {
+        if (self::$config->get('file.enabled', false)) {
             $handlers[] = new FileLogHandler(
-                self::$config['file']['path'] ?? 'logs/game.log',
-                self::$config['file']['max_size'] ?? 10 * 1024 * 1024,
-                self::$config['file']['max_files'] ?? 5
+                self::$config->get('file.path', 'logs/game.log'),
+                self::$config->get('file.max_size', 10 * 1024 * 1024),
+                self::$config->get('file.max_files', 5)
             );
         }
 

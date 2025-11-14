@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PfinalClub\AsyncioGamekit\Room\Traits;
 
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
+use PfinalClub\AsyncioGamekit\Constants\GameEvents;
 use function PfinalClub\Asyncio\create_task;
 
 /**
@@ -38,8 +41,11 @@ trait PlayerManagement
         $this->players[$player->getId()] = $player;
         $player->setRoom($this);
 
+        // 清除缓存（玩家列表已变化）
+        $this->invalidateCache();
+
         $this->onPlayerJoin($player);
-        $this->broadcast('player:join', $player->toArray());
+        $this->broadcast(GameEvents::PLAYER_JOIN, $player->toArray());
 
         // 检查是否自动开始
         if (($this->config['auto_start'] ?? false) && $this->canStart()) {
@@ -62,8 +68,11 @@ trait PlayerManagement
         unset($this->players[$playerId]);
         $player->setRoom(null);
 
+        // 清除缓存（玩家列表已变化）
+        $this->invalidateCache();
+
         $this->onPlayerLeave($player);
-        $this->broadcast('player:leave', ['player_id' => $playerId]);
+        $this->broadcast(GameEvents::PLAYER_LEAVE, ['player_id' => $playerId]);
 
         // 如果房间为空且未运行，延迟销毁（给新玩家加入的机会）
         if (empty($this->players) && $this->status !== 'running') {

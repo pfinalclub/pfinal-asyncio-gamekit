@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit;
 
 /**
@@ -25,9 +26,15 @@ class Player
     
     /** @var bool 是否准备 */
     private bool $ready = false;
-    
+
     /** @var bool|null 连接是否有效（缓存验证结果） */
     private ?bool $hasValidConnection = null;
+
+    /** @var array|null 缓存的数组表示 */
+    private ?array $cachedArray = null;
+
+    /** @var bool 数据是否已修改（脏标记） */
+    private bool $isDirty = true;
 
     /**
      * @param string $id 玩家ID
@@ -63,6 +70,7 @@ class Player
     public function setName(string $name): void
     {
         $this->name = $name;
+        $this->isDirty = true; // 标记为脏数据
     }
 
     /**
@@ -97,11 +105,11 @@ class Player
                 // 如果已预编码，直接发送（$event 包含完整消息）
                 $message = $event;
             } else {
-                $message = json_encode([
-                    'event' => $event,
-                    'data' => $data,
-                    'timestamp' => microtime(true)
-                ], JSON_THROW_ON_ERROR);
+            $message = json_encode([
+                'event' => $event,
+                'data' => $data,
+                'timestamp' => microtime(true)
+            ], JSON_THROW_ON_ERROR);
             }
             
             $result = $this->connection->send($message);
@@ -145,6 +153,7 @@ class Player
     public function set(string $key, mixed $value): void
     {
         $this->data[$key] = $value;
+        $this->isDirty = true; // 标记为脏数据
     }
 
     /**
@@ -177,6 +186,7 @@ class Player
     public function setReady(bool $ready): void
     {
         $this->ready = $ready;
+        $this->isDirty = true; // 标记为脏数据
     }
 
     /**
@@ -188,16 +198,25 @@ class Player
     }
 
     /**
-     * 转换为数组
+     * 转换为数组（带缓存）
      */
     public function toArray(): array
     {
-        return [
+        // 如果缓存有效，直接返回
+        if (!$this->isDirty && $this->cachedArray !== null) {
+            return $this->cachedArray;
+        }
+        
+        // 重新构建缓存
+        $this->cachedArray = [
             'id' => $this->id,
             'name' => $this->name,
             'ready' => $this->ready,
             'data' => $this->data
         ];
+        
+        $this->isDirty = false;
+        return $this->cachedArray;
     }
 }
 

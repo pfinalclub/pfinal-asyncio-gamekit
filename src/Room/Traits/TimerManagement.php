@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PfinalClub\AsyncioGamekit\Room\Traits;
 
 use function PfinalClub\Asyncio\{sleep, get_event_loop};
@@ -14,33 +16,41 @@ trait TimerManagement
     protected array $timerIds = [];
 
     /**
-     * 添加定时任务
+     * 添加定时器
      * 
-     * @param float $interval 时间间隔（秒）
+     * @param float $interval 间隔时间（秒）
      * @param callable $callback 回调函数
-     * @param bool $repeat 是否重复执行
-     * @return int|null 定时器ID，失败返回null
+     * @param bool $persistent 是否持久化（重复执行）
+     * @return int 定时器ID
      */
-    protected function addTimer(float $interval, callable $callback, bool $repeat = false): ?int
+    public function addTimer(float $interval, callable $callback, bool $persistent = false): int
     {
         $loop = get_event_loop();
-        $timerId = $loop->addTimer($interval, $callback, $repeat);
+        $timerId = $loop->addTimer($interval, $callback, $persistent);
         
         if ($timerId !== null) {
             $this->timerIds[] = $timerId;
+            return $timerId;
         }
         
-        return $timerId;
+        return 0;
     }
 
     /**
-     * 删除定时任务
+     * 移除定时器
+     * 
+     * @param int $timerId 定时器ID
+     * @return bool 是否成功
      */
-    protected function removeTimer(int $timerId): void
+    public function removeTimer(int $timerId): bool
     {
         $loop = get_event_loop();
         $loop->delTimer($timerId);
+        
+        $beforeCount = count($this->timerIds);
         $this->timerIds = array_filter($this->timerIds, fn($id) => $id !== $timerId);
+        
+        return count($this->timerIds) < $beforeCount;
     }
 
     /**
@@ -69,4 +79,3 @@ trait TimerManagement
         $this->timerIds = [];
     }
 }
-

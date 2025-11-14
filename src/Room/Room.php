@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Room;
 
 use PfinalClub\AsyncioGamekit\Player;
@@ -14,7 +15,7 @@ use PfinalClub\AsyncioGamekit\Room\Traits\{
  * Room 房间基类
  * 提供异步游戏逻辑编排能力
  */
-abstract class Room
+abstract class Room implements RoomInterface
 {
     use PlayerManagement;
     use LifecycleManagement;
@@ -32,6 +33,18 @@ abstract class Room
     
     /** @var int|null 缓存的最小玩家数 */
     private ?int $cachedMinPlayers = null;
+
+    /** @var array|null 缓存的完整数组表示（包含玩家） */
+    private ?array $cachedArrayFull = null;
+
+    /** @var array|null 缓存的完整数组表示（不包含玩家） */
+    private ?array $cachedArrayNoPlayers = null;
+
+    /** @var array|null 缓存的轻量级数组表示 */
+    private ?array $cachedArrayLight = null;
+
+    /** @var bool 数据是否已修改（脏标记） */
+    private bool $isDirty = true;
 
     /**
      * @param string $id 房间ID
@@ -162,39 +175,79 @@ abstract class Room
     }
 
     /**
-     * 转换为数组（完整版）
+     * 清除缓存（当房间状态改变时调用）
+     */
+    protected function invalidateCache(): void
+    {
+        $this->isDirty = true;
+        $this->cachedArrayFull = null;
+        $this->cachedArrayNoPlayers = null;
+        $this->cachedArrayLight = null;
+    }
+
+    /**
+     * 转换为数组（完整版，带缓存）
      * 
      * @param bool $includePlayers 是否包含玩家详细信息
      */
     public function toArray(bool $includePlayers = true): array
     {
-        $result = [
-            'id' => $this->id,
-            'status' => $this->status,
-            'player_count' => count($this->players),
-            'config' => $this->config,
-            'data' => $this->data
-        ];
-        
         if ($includePlayers) {
-            $result['players'] = array_map(fn($p) => $p->toArray(), $this->players);
+            // 包含玩家的完整版
+            if (!$this->isDirty && $this->cachedArrayFull !== null) {
+                return $this->cachedArrayFull;
+            }
+            
+            $this->cachedArrayFull = [
+                'id' => $this->id,
+                'status' => $this->status,
+                'player_count' => count($this->players),
+                'config' => $this->config,
+                'data' => $this->data,
+                'players' => array_map(fn($p) => $p->toArray(), $this->players)
+            ];
+            
+            $this->isDirty = false;
+            return $this->cachedArrayFull;
+        } else {
+            // 不包含玩家的版本
+            if (!$this->isDirty && $this->cachedArrayNoPlayers !== null) {
+                return $this->cachedArrayNoPlayers;
+            }
+            
+            $this->cachedArrayNoPlayers = [
+                'id' => $this->id,
+                'status' => $this->status,
+                'player_count' => count($this->players),
+                'config' => $this->config,
+                'data' => $this->data
+            ];
+            
+            $this->isDirty = false;
+            return $this->cachedArrayNoPlayers;
         }
-        
-        return $result;
     }
 
     /**
-     * 转换为轻量级数组（不包含玩家详细信息）
+     * 转换为轻量级数组（不包含玩家详细信息，带缓存）
      */
     public function toArrayLight(): array
     {
-        return [
+        // 轻量级版本缓存独立，只在玩家数变化或状态变化时失效
+        if (!$this->isDirty && $this->cachedArrayLight !== null) {
+            return $this->cachedArrayLight;
+        }
+        
+        $this->cachedArrayLight = [
             'id' => $this->id,
             'status' => $this->status,
             'player_count' => count($this->players),
             'max_players' => $this->cachedMaxPlayers,
             'min_players' => $this->cachedMinPlayers,
         ];
+        
+        // 轻量级不设置 isDirty = false，因为它不包含完整数据
+        return $this->cachedArrayLight;
     }
 }
 

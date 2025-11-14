@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Room\Traits;
 
 /**
@@ -17,6 +18,9 @@ trait DataStorage
     public function set(string $key, mixed $value): void
     {
         $this->data[$key] = $value;
+        
+        // 清除缓存（数据已变化）
+        $this->invalidateCache();
     }
 
     /**
@@ -41,6 +45,9 @@ trait DataStorage
     public function unset(string $key): void
     {
         unset($this->data[$key]);
+        
+        // 清除缓存（数据已变化）
+        $this->invalidateCache();
     }
 
     /**
@@ -57,6 +64,9 @@ trait DataStorage
     public function clearData(): void
     {
         $this->data = [];
+        
+        // 清除缓存（数据已变化）
+        $this->invalidateCache();
     }
 }
 
