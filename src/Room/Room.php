@@ -14,6 +14,7 @@ use PfinalClub\AsyncioGamekit\Room\Traits\{
 /**
  * Room 房间基类
  * 提供异步游戏逻辑编排能力
+ * 支持观察者模式自动通知状态变化
  */
 abstract class Room implements RoomInterface
 {
@@ -21,6 +22,9 @@ abstract class Room implements RoomInterface
     use LifecycleManagement;
     use TimerManagement;
     use DataStorage;
+    
+    /** @var array<RoomObserverInterface> 观察者列表 */
+    private array $observers = [];
 
     /** @var string 房间ID */
     protected string $id;
@@ -248,6 +252,55 @@ abstract class Room implements RoomInterface
         
         // 轻量级不设置 isDirty = false，因为它不包含完整数据
         return $this->cachedArrayLight;
+    }
+
+    /**
+     * 添加观察者
+     */
+    public function attach(RoomObserverInterface $observer): void
+    {
+        $this->observers[] = $observer;
+    }
+
+    /**
+     * 移除观察者
+     */
+    public function detach(RoomObserverInterface $observer): void
+    {
+        $this->observers = array_filter(
+            $this->observers,
+            fn($obs) => $obs !== $observer
+        );
+    }
+
+    /**
+     * 通知观察者：状态变化
+     */
+    protected function notifyStatusChanged(string $oldStatus, string $newStatus): void
+    {
+        foreach ($this->observers as $observer) {
+            $observer->onRoomStatusChanged($this, $oldStatus, $newStatus);
+        }
+    }
+
+    /**
+     * 通知观察者：玩家加入
+     */
+    protected function notifyPlayerJoined(string $playerId): void
+    {
+        foreach ($this->observers as $observer) {
+            $observer->onPlayerJoined($this, $playerId);
+        }
+    }
+
+    /**
+     * 通知观察者：玩家离开
+     */
+    protected function notifyPlayerLeft(string $playerId): void
+    {
+        foreach ($this->observers as $observer) {
+            $observer->onPlayerLeft($this, $playerId);
+        }
     }
 }
 

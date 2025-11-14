@@ -48,10 +48,18 @@ final class RateLimitConfig
     
     /**
      * 创建自定义配置
+     * 
+     * @param string $key 限流标识
+     * @param int $capacity 令牌桶容量
+     * @param float $rate 令牌生成速率（每秒）
      */
     public static function custom(string $key, int $capacity, float $rate): self
     {
-        return new self($capacity, $rate, $key);
+        return new self(
+            capacity: $capacity,
+            rate: $rate,
+            key: $key
+        );
     }
 }
 

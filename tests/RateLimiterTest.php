@@ -4,6 +4,7 @@ namespace PfinalClub\AsyncioGamekit\Tests;
 
 use PHPUnit\Framework\TestCase;
 use PfinalClub\AsyncioGamekit\RateLimit\TokenBucketLimiter;
+use PfinalClub\AsyncioGamekit\RateLimit\RateLimitConfig;
 
 class RateLimiterTest extends TestCase
 {
@@ -14,9 +15,18 @@ class RateLimiterTest extends TestCase
         $this->limiter = new TokenBucketLimiter();
     }
 
+    /**
+     * 辅助方法：使用配置对象调用 allow
+     */
+    private function allow(string $key, int $capacity, float $rate): bool
+    {
+        $config = RateLimitConfig::custom($key, $capacity, $rate);
+        return $this->limiter->allow($config);
+    }
+
     public function testAllowFirstRequest(): void
     {
-        $result = $this->limiter->allow('user1', 10, 1);
+        $result = $this->allow('user1', 10, 1);
         
         $this->assertTrue($result);
     }
@@ -28,12 +38,12 @@ class RateLimiterTest extends TestCase
         
         // 前3个请求应该成功
         for ($i = 0; $i < $capacity; $i++) {
-            $result = $this->limiter->allow('user1', $capacity, $rate);
+            $result = $this->allow('user1', $capacity, $rate);
             $this->assertTrue($result, "Request $i should be allowed");
         }
         
         // 第4个请求应该失败（令牌已耗尽）
-        $result = $this->limiter->allow('user1', $capacity, $rate);
+        $result = $this->allow('user1', $capacity, $rate);
         $this->assertFalse($result, "Request beyond capacity should be denied");
     }
 
@@ -43,17 +53,17 @@ class RateLimiterTest extends TestCase
         $rate = 10; // 每秒补充10个令牌
         
         // 消耗所有令牌
-        $this->limiter->allow('user1', $capacity, $rate);
-        $this->limiter->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
         
         // 此时应该失败
-        $this->assertFalse($this->limiter->allow('user1', $capacity, $rate));
+        $this->assertFalse($this->allow('user1', $capacity, $rate));
         
         // 等待100ms（应该补充1个令牌）
         usleep(100000);
         
         // 现在应该成功
-        $this->assertTrue($this->limiter->allow('user1', $capacity, $rate));
+        $this->assertTrue($this->allow('user1', $capacity, $rate));
     }
 
     public function testDifferentUsers(): void
@@ -62,14 +72,14 @@ class RateLimiterTest extends TestCase
         $rate = 1;
         
         // user1 消耗令牌
-        $this->assertTrue($this->limiter->allow('user1', $capacity, $rate));
-        $this->assertTrue($this->limiter->allow('user1', $capacity, $rate));
-        $this->assertFalse($this->limiter->allow('user1', $capacity, $rate));
+        $this->assertTrue($this->allow('user1', $capacity, $rate));
+        $this->assertTrue($this->allow('user1', $capacity, $rate));
+        $this->assertFalse($this->allow('user1', $capacity, $rate));
         
         // user2 应该有独立的令牌桶
-        $this->assertTrue($this->limiter->allow('user2', $capacity, $rate));
-        $this->assertTrue($this->limiter->allow('user2', $capacity, $rate));
-        $this->assertFalse($this->limiter->allow('user2', $capacity, $rate));
+        $this->assertTrue($this->allow('user2', $capacity, $rate));
+        $this->assertTrue($this->allow('user2', $capacity, $rate));
+        $this->assertFalse($this->allow('user2', $capacity, $rate));
     }
 
     public function testReset(): void
@@ -78,16 +88,16 @@ class RateLimiterTest extends TestCase
         $rate = 1;
         
         // 消耗所有令牌
-        $this->limiter->allow('user1', $capacity, $rate);
-        $this->limiter->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
         
-        $this->assertFalse($this->limiter->allow('user1', $capacity, $rate));
+        $this->assertFalse($this->allow('user1', $capacity, $rate));
         
         // 重置
         $this->limiter->reset('user1');
         
         // 现在应该成功
-        $this->assertTrue($this->limiter->allow('user1', $capacity, $rate));
+        $this->assertTrue($this->allow('user1', $capacity, $rate));
     }
 
     public function testRemaining(): void
@@ -96,8 +106,8 @@ class RateLimiterTest extends TestCase
         $rate = 1;
         
         // 消耗2个令牌
-        $this->limiter->allow('user1', $capacity, $rate);
-        $this->limiter->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
+        $this->allow('user1', $capacity, $rate);
         
         $remaining = $this->limiter->remaining('user1');
         
@@ -114,8 +124,8 @@ class RateLimiterTest extends TestCase
 
     public function testClear(): void
     {
-        $this->limiter->allow('user1', 10, 1);
-        $this->limiter->allow('user2', 10, 1);
+        $this->allow('user1', 10, 1);
+        $this->allow('user2', 10, 1);
         
         $this->assertGreaterThan(0, $this->limiter->getBucketCount());
         
@@ -126,8 +136,8 @@ class RateLimiterTest extends TestCase
 
     public function testGetStats(): void
     {
-        $this->limiter->allow('user1', 10, 1);
-        $this->limiter->allow('user2', 10, 1);
+        $this->allow('user1', 10, 1);
+        $this->allow('user2', 10, 1);
         
         $stats = $this->limiter->getStats();
         
@@ -154,7 +164,7 @@ class RateLimiterTest extends TestCase
         
         // 创建超过最大数量的桶
         for ($i = 0; $i < 10; $i++) {
-            $this->limiter->allow("user$i", 10, 1);
+            $this->allow("user$i", 10, 1);
         }
         
         $stats = $this->limiter->getStats();
@@ -171,7 +181,7 @@ class RateLimiterTest extends TestCase
         
         // 快速消耗
         for ($i = 0; $i < 50; $i++) {
-            $this->limiter->allow('user1', $capacity, $rate);
+            $this->allow('user1', $capacity, $rate);
         }
         
         // 等待50ms
@@ -180,7 +190,7 @@ class RateLimiterTest extends TestCase
         // 应该补充约50个令牌，所以应该能再消耗一些
         $allowed = 0;
         for ($i = 0; $i < 60; $i++) {
-            if ($this->limiter->allow('user1', $capacity, $rate)) {
+            if ($this->allow('user1', $capacity, $rate)) {
                 $allowed++;
             }
         }
@@ -190,20 +200,21 @@ class RateLimiterTest extends TestCase
 
     public function testZeroCapacity(): void
     {
-        // 容量为0应该总是拒绝
-        $result = $this->limiter->allow('user1', 0, 1);
+        // 容量为0应该抛出异常（配置验证）
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Capacity must be positive');
         
-        $this->assertFalse($result);
+        $this->allow('user1', 0, 1);
     }
 
     public function testGetBucketCount(): void
     {
         $this->assertEquals(0, $this->limiter->getBucketCount());
         
-        $this->limiter->allow('user1', 10, 1);
+        $this->allow('user1', 10, 1);
         $this->assertEquals(1, $this->limiter->getBucketCount());
         
-        $this->limiter->allow('user2', 10, 1);
+        $this->allow('user2', 10, 1);
         $this->assertEquals(2, $this->limiter->getBucketCount());
         
         $this->limiter->reset('user1');
@@ -221,7 +232,7 @@ class RateLimiterTest extends TestCase
         // 消耗超过容量的令牌
         $allowed = 0;
         for ($i = 0; $i < 10; $i++) {
-            if ($this->limiter->allow('user1', $capacity, $rate)) {
+            if ($this->allow('user1', $capacity, $rate)) {
                 $allowed++;
             }
         }
@@ -240,12 +251,12 @@ class RateLimiterTest extends TestCase
         foreach ($users as $user) {
             // 每个用户应该都能成功3次
             for ($i = 0; $i < $capacity; $i++) {
-                $result = $this->limiter->allow($user, $capacity, $rate);
+                $result = $this->allow($user, $capacity, $rate);
                 $this->assertTrue($result, "User $user request $i should be allowed");
             }
             
             // 第4次应该失败
-            $result = $this->limiter->allow($user, $capacity, $rate);
+            $result = $this->allow($user, $capacity, $rate);
             $this->assertFalse($result, "User $user extra request should be denied");
         }
     }

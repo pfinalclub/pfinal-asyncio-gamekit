@@ -43,14 +43,25 @@ class TokenBucketLimiter implements RateLimiterInterface
     }
 
     /**
-     * 检查是否允许通过
+     * 检查是否允许通过（使用配置对象）
+     * 
+     * @param RateLimitConfig $config 限流配置
+     * @return bool 是否允许通过
+     */
+    public function allow(RateLimitConfig $config): bool
+    {
+        return $this->checkToken($config->key, $config->capacity, $config->rate);
+    }
+
+    /**
+     * 检查令牌（内部方法）
      * 
      * @param string $key 限流键
      * @param int $capacity 桶容量
      * @param float $rate 每秒补充速率
      * @return bool 是否允许通过
      */
-    public function allow(string $key, int $capacity, float $rate): bool
+    private function checkToken(string $key, int $capacity, float $rate): bool
     {
         $now = microtime(true);
         

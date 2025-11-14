@@ -7,7 +7,7 @@ use Workerman\Worker;
 use Workerman\Connection\TcpConnection;
 use PfinalClub\AsyncioGamekit\Exceptions\{GameException, RoomException, ServerException};
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
-use PfinalClub\AsyncioGamekit\RateLimit\{RateLimiterInterface, TokenBucketLimiter};
+use PfinalClub\AsyncioGamekit\RateLimit\{RateLimiterInterface, TokenBucketLimiter, RateLimitConfig};
 use PfinalClub\AsyncioGamekit\Security\{MessageSigner, InputValidator};
 use PfinalClub\AsyncioGamekit\Constants\GameEvents;
 
@@ -131,20 +131,52 @@ class GameServer
     }
 
     /**
-     * 收到消息时
+     * 收到消息时（重构版 - 职责单一）
      */
     protected function onMessage(TcpConnection $connection, string $data): void
     {
-        $player = $this->connections[$connection->id] ?? null;
+        $player = $this->getPlayerFromConnection($connection);
         if (!$player) {
             return;
         }
 
-        // 限流检查：每个玩家每秒最多 20 条消息（容量20，速率20/秒）
-        $playerId = $player->getId();
-        if (!$this->rateLimiter->allow($playerId, 20, 20)) {
+        if (!$this->checkRateLimit($player)) {
+            return;
+        }
+
+        try {
+            $message = $this->validateAndParseMessage($data, $player);
+            $this->dispatchMessage($player, $message);
+        } catch (GameException $e) {
+            $this->handleGameException($player, $e);
+        } catch (\Throwable $e) {
+            $this->handleGenericException($player, $e);
+        }
+    }
+
+    /**
+     * 从连接获取玩家对象
+     */
+    private function getPlayerFromConnection(TcpConnection $connection): ?Player
+    {
+        return $this->connections[$connection->id] ?? null;
+    }
+
+    /**
+     * 检查玩家限流
+     */
+    private function checkRateLimit(Player $player): bool
+    {
+        // 每个玩家每秒最多 20 条消息（容量20，速率20/秒）
+        $config = RateLimitConfig::custom(
+            key: $player->getId(),
+            capacity: 20,
+            rate: 20.0
+        );
+        
+        if (!$this->rateLimiter->allow($config)) {
             LoggerFactory::warning("Rate limit exceeded for player", [
-                'player_id' => $playerId,
+                'player_id' => $player->getId(),
                 'player_name' => $player->getName(),
             ]);
             
@@ -152,56 +184,105 @@ class GameServer
                 'message' => 'Too many requests. Please slow down.',
                 'code' => 'RATE_LIMIT_EXCEEDED'
             ]);
-            return;
+            
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * 验证并解析消息
+     * 
+     * @throws ServerException 验证失败
+     */
+    private function validateAndParseMessage(string $data, Player $player): array
+    {
+        // 使用输入验证器验证消息
+        $message = $this->inputValidator->validateMessage($data);
+
+        // 如果启用了签名验证
+        if ($this->signatureRequired) {
+            $this->verifyMessageSignature($message, $player);
         }
 
-        try {
-            // 使用输入验证器验证消息
-            $message = $this->inputValidator->validateMessage($data);
+        return $message;
+    }
 
-            // 如果启用了签名验证
-            if ($this->signatureRequired && $this->messageSigner) {
-                if (!$this->messageSigner->verifyMessage($message)) {
-                    LoggerFactory::warning("Invalid message signature", [
-                        'player_id' => $playerId,
-                        'player_name' => $player->getName(),
-                    ]);
-                    
-                    $player->send(GameEvents::ERROR, [
-                        'message' => 'Invalid message signature',
-                        'code' => 'INVALID_SIGNATURE'
-                    ]);
-                    return;
-                }
-            }
-
-            $event = $message['event'];
-            $payload = $message['data'] ?? null;
-
-            // 处理系统事件
-            $this->handleSystemEvent($player, $event, $payload);
-
-            // 如果玩家在房间中，转发给房间处理
-            $room = $this->roomManager->getPlayerRoom($player);
-            if ($room) {
-                \PfinalClub\Asyncio\create_task(
-                    fn() => $room->onPlayerMessage($player, $event, $payload)
-                );
-            }
-
-        } catch (GameException $e) {
-            // 游戏框架异常
-            $player->send(GameEvents::ERROR, [
-                'message' => $e->getMessage(),
-                'code' => $e->getCode(),
-                'context' => $e->getContext()
+    /**
+     * 验证消息签名
+     * 
+     * @throws ServerException 签名验证失败
+     */
+    private function verifyMessageSignature(array $message, Player $player): void
+    {
+        if (!$this->messageSigner || !$this->messageSigner->verifyMessage($message)) {
+            LoggerFactory::warning("Invalid message signature", [
+                'player_id' => $player->getId(),
+                'player_name' => $player->getName(),
             ]);
-            $this->logError($e);
-        } catch (\Throwable $e) {
-            // 其他异常
-            $player->send(GameEvents::ERROR, ['message' => 'Internal server error']);
-            $this->logError($e);
+            
+            $player->send(GameEvents::ERROR, [
+                'message' => 'Invalid message signature',
+                'code' => 'INVALID_SIGNATURE'
+            ]);
+            
+            throw ServerException::invalidMessageFormat('Invalid message signature');
         }
+    }
+
+    /**
+     * 分发消息到相应的处理器
+     */
+    private function dispatchMessage(Player $player, array $message): void
+    {
+        $event = $message['event'];
+        $payload = $message['data'] ?? null;
+
+        // 处理系统事件
+        $this->handleSystemEvent($player, $event, $payload);
+
+        // 如果玩家在房间中，转发给房间处理
+        $this->forwardToRoom($player, $event, $payload);
+    }
+
+    /**
+     * 转发消息到房间
+     */
+    private function forwardToRoom(Player $player, string $event, mixed $payload): void
+    {
+        $room = $this->roomManager->getPlayerRoom($player);
+        if ($room) {
+            \PfinalClub\Asyncio\create_task(
+                fn() => $room->onPlayerMessage($player, $event, $payload)
+            );
+        }
+    }
+
+    /**
+     * 处理游戏异常
+     */
+    private function handleGameException(Player $player, GameException $e): void
+    {
+        $player->send(GameEvents::ERROR, [
+            'message' => $e->getMessage(),
+            'code' => $e->getCode(),
+            'context' => $e->getContext()
+        ]);
+        
+        $this->logError($e);
+    }
+
+    /**
+     * 处理通用异常
+     */
+    private function handleGenericException(Player $player, \Throwable $e): void
+    {
+        $player->send(GameEvents::ERROR, [
+            'message' => 'Internal server error'
+        ]);
+        
+        $this->logError($e);
     }
 
     /**

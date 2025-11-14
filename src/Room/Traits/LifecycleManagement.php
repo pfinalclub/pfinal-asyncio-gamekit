@@ -31,10 +31,14 @@ trait LifecycleManagement
      */
     protected function setStatus(string $status): void
     {
+        $oldStatus = $this->status;
         $this->status = $status;
         
         // 清除缓存（状态已变化）
         $this->invalidateCache();
+        
+        // 通知观察者
+        $this->notifyStatusChanged($oldStatus, $status);
         
         $this->broadcast('room:status_changed', [
             'status' => $status,

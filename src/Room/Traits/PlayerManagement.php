@@ -44,6 +44,9 @@ trait PlayerManagement
         // 清除缓存（玩家列表已变化）
         $this->invalidateCache();
 
+        // 通知观察者
+        $this->notifyPlayerJoined($player->getId());
+
         $this->onPlayerJoin($player);
         $this->broadcast(GameEvents::PLAYER_JOIN, $player->toArray());
 
@@ -70,6 +73,9 @@ trait PlayerManagement
 
         // 清除缓存（玩家列表已变化）
         $this->invalidateCache();
+
+        // 通知观察者
+        $this->notifyPlayerLeft($playerId);
 
         $this->onPlayerLeave($player);
         $this->broadcast(GameEvents::PLAYER_LEAVE, ['player_id' => $playerId]);

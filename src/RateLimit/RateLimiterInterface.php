@@ -11,12 +11,10 @@ interface RateLimiterInterface
     /**
      * 检查是否允许通过（消费一个令牌）
      * 
-     * @param string $key 限流键（如用户ID、IP地址等）
-     * @param int $capacity 桶容量（最大令牌数）
-     * @param float $rate 令牌补充速率（每秒补充数量）
+     * @param RateLimitConfig $config 限流配置（包含key、capacity、rate）
      * @return bool 是否允许通过
      */
-    public function allow(string $key, int $capacity, float $rate): bool;
+    public function allow(RateLimitConfig $config): bool;
 
     /**
      * 重置指定键的限流状态

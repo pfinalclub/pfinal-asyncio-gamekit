@@ -5,6 +5,7 @@ namespace PfinalClub\AsyncioGamekit;
 
 use PfinalClub\AsyncioGamekit\Exceptions\{RoomException, ManagerException};
 use PfinalClub\AsyncioGamekit\Memory\{MemoryManager, MemoryManagerInterface};
+use PfinalClub\AsyncioGamekit\Manager\RoomManagerObserver;
 
 /**
  * RoomManager 房间管理器
@@ -43,6 +44,9 @@ class RoomManager
         ],
     ];
 
+    /** @var RoomManagerObserver 房间观察者（自动更新索引） */
+    private RoomManagerObserver $roomObserver;
+
     /**
      * 构造函数
      */
@@ -50,6 +54,7 @@ class RoomManager
     {
         $this->memoryManager = $memoryManager ?? new MemoryManager(256, 0.8);
         $this->maxRooms = $maxRooms;
+        $this->roomObserver = new RoomManagerObserver($this);
     }
 
     /**
@@ -93,6 +98,9 @@ class RoomManager
 
         $room = new $roomClass($roomId, $config);
         $this->rooms[$roomId] = $room;
+        
+        // 添加观察者（自动更新索引）
+        $room->attach($this->roomObserver);
         
         // 添加到索引（新房间默认为 waiting 状态）
         $this->addToIndex($roomClass, 'waiting', $roomId, $room);
