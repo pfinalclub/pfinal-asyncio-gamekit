@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PfinalClub\AsyncioGamekit\Memory;
 
 /**
@@ -44,10 +45,16 @@ interface MemoryManagerInterface
     public function gc(): void;
 
     /**
-     * 获取内存统计信息
+     * 获取统计信息
      * 
-     * @return array
+     * @return array 包含使用量、限制等信息的数组
      */
     public function getStats(): array;
-}
 
+    /**
+     * 定期检查（应在主循环中调用）
+     * 
+     * @return void
+     */
+    public function periodicCheck(): void;
+}

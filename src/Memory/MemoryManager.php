@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace PfinalClub\AsyncioGamekit\Memory;
 
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
@@ -49,25 +50,12 @@ class MemoryManager implements MemoryManagerInterface
             return false; // 不限制
         }
 
-        $usage = $this->getCurrentUsage();
-        $percentage = $usage / $this->limit;
-
-        // 发出警告
-        if ($percentage >= $this->warningThreshold && !$this->warningIssued) {
-            $this->issueWarning($usage, $percentage);
-            $this->warningIssued = true;
-        }
-
-        // 如果低于警告阈值，重置警告标志
-        if ($percentage < $this->warningThreshold) {
-            $this->warningIssued = false;
-        }
-
-        return $usage >= $this->limit;
+        $current = memory_get_usage(true);
+        return $current > $this->limit;
     }
 
     /**
-     * 获取当前内存使用量
+     * 获取当前内存使用量（字节）
      */
     public function getCurrentUsage(): int
     {
@@ -75,7 +63,7 @@ class MemoryManager implements MemoryManagerInterface
     }
 
     /**
-     * 获取内存限制
+     * 获取内存限制（字节）
      */
     public function getLimit(): int
     {
@@ -91,28 +79,59 @@ class MemoryManager implements MemoryManagerInterface
             return 0.0;
         }
 
-        return ($this->getCurrentUsage() / $this->limit) * 100;
+        return (memory_get_usage(true) / $this->limit) * 100;
     }
 
     /**
-     * 强制垃圾回收
+     * 获取内存使用百分比
+     */
+    public function getUsagePercent(): float
+    {
+        if ($this->limit === 0) {
+            return 0.0;
+        }
+
+        return (memory_get_usage(true) / $this->limit) * 100;
+    }
+
+    /**
+     * 获取统计信息
+     */
+    public function getStats(): array
+    {
+        $current = memory_get_usage(true);
+        $peak = memory_get_peak_usage(true);
+
+        $stats = [
+            'current' => $current,
+            'peak' => $peak,
+            'limit' => $this->limit,
+            'usage_percent' => $this->limit > 0 ? ($current / $this->limit) * 100 : 0,
+            'peak_percent' => $this->limit > 0 ? ($peak / $this->limit) * 100 : 0,
+            'warning_threshold_percent' => $this->warningThreshold * 100,
+        ];
+
+        // 转换为可读格式
+        $stats['current_mb'] = round($current / 1024 / 1024, 2);
+        $stats['peak_mb'] = round($peak / 1024 / 1024, 2);
+        $stats['limit_mb'] = round($this->limit / 1024 / 1024, 2);
+
+        return $stats;
+    }
+
+    /**
+     * 手动触发垃圾回收
      */
     public function gc(): void
     {
-        $before = $this->getCurrentUsage();
-        
-        // PHP 垃圾回收
+        $before = memory_get_usage(true);
         gc_collect_cycles();
-        
-        $after = $this->getCurrentUsage();
-        $freed = $before - $after;
+        $after = memory_get_usage(true);
 
+        $freed = $before - $after;
         if ($freed > 0) {
-            LoggerFactory::debug("Garbage collection freed memory", [
-                'freed_bytes' => $freed,
-                'freed_mb' => round($freed / 1024 / 1024, 2),
-                'before_mb' => round($before / 1024 / 1024, 2),
-                'after_mb' => round($after / 1024 / 1024, 2),
+            LoggerFactory::info("Garbage collection freed {size}", [
+                'size' => $this->formatBytes($freed),
             ]);
         }
     }
@@ -129,78 +148,54 @@ class MemoryManager implements MemoryManagerInterface
         }
 
         $this->lastCheckTime = $now;
+        $stats = $this->getStats();
 
+        // 检查是否超限
         if ($this->isOverLimit()) {
-            LoggerFactory::error("Memory limit exceeded", $this->getStats());
+            LoggerFactory::critical("Memory limit exceeded: {current}/{limit}", [
+                'current' => $stats['current_mb'],
+                'limit' => $stats['limit_mb'],
+                'usage_percent' => round($stats['usage_percent'], 2),
+            ]);
             
-            // 尝试垃圾回收
+            // 触发垃圾回收
             $this->gc();
-            
-            // 如果仍超限，触发紧急清理
-            if ($this->isOverLimit()) {
-                $this->emergencyCleanup();
-            }
         }
-    }
+        // 检查是否需要警告
+        elseif ($stats['usage_percent'] > ($this->warningThreshold * 100) && !$this->warningIssued) {
+            $this->warningIssued = true;
+            LoggerFactory::warning("Memory usage high: {current}/{limit} ({percent}%)", [
+                'current' => $stats['current_mb'],
+                'limit' => $stats['limit_mb'],
+                'percent' => round($stats['usage_percent'], 2),
+                'threshold' => round($this->warningThreshold * 100, 2),
+            ]);
+        }
+        // 重置警告状态
+        elseif ($stats['usage_percent'] <= ($this->warningThreshold * 100)) {
+            $this->warningIssued = false;
+        }
 
-    /**
-     * 获取内存统计信息
-     */
-    public function getStats(): array
-    {
-        $current = $this->getCurrentUsage();
-        $peak = memory_get_peak_usage(true);
-
-        return [
-            'current_bytes' => $current,
-            'current_mb' => round($current / 1024 / 1024, 2),
-            'peak_bytes' => $peak,
-            'peak_mb' => round($peak / 1024 / 1024, 2),
-            'limit_bytes' => $this->limit,
-            'limit_mb' => round($this->limit / 1024 / 1024, 2),
-            'usage_percentage' => round($this->getUsagePercentage(), 2),
-            'php_memory_limit' => ini_get('memory_limit'),
-        ];
-    }
-
-    /**
-     * 发出内存警告
-     */
-    private function issueWarning(int $usage, float $percentage): void
-    {
-        LoggerFactory::warning("Memory usage high", [
-            'usage_mb' => round($usage / 1024 / 1024, 2),
-            'limit_mb' => round($this->limit / 1024 / 1024, 2),
-            'percentage' => round($percentage * 100, 2) . '%',
-            'threshold' => round($this->warningThreshold * 100, 2) . '%',
+        LoggerFactory::debug("Memory check", [
+            'current' => $stats['current_mb'],
+            'limit' => $stats['limit_mb'],
+            'usage_percent' => round($stats['usage_percent'], 2),
         ]);
     }
 
     /**
-     * 紧急清理（子类可重写以实现具体清理逻辑）
+     * 格式化字节数
      */
-    protected function emergencyCleanup(): void
+    private function formatBytes(int $bytes): string
     {
-        LoggerFactory::critical("Emergency memory cleanup triggered", $this->getStats());
-        
-        // 再次尝试垃圾回收
-        $this->gc();
-    }
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $unitIndex = 0;
 
-    /**
-     * 设置检查间隔
-     */
-    public function setCheckInterval(int $seconds): void
-    {
-        $this->checkInterval = max(1, $seconds);
-    }
+        while ($bytes >= 1024 && $unitIndex < count($units) - 1) {
+            $bytes /= 1024;
+            $unitIndex++;
+        }
 
-    /**
-     * 设置告警阈值
-     */
-    public function setWarningThreshold(float $threshold): void
-    {
-        $this->warningThreshold = max(0.0, min(1.0, $threshold));
+        return round($bytes, 2) . ' ' . $units[$unitIndex];
     }
 }
-

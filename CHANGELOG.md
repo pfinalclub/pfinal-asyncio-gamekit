@@ -4,17 +4,17 @@
 
 ## [3.0.0] - 2026-01-12
 
-### 🚀 Major Upgrade to pfinal-asyncio v3.0
+### 🚀 升级到 pfinal-asyncio v3.0 重构版本
 
-#### ✨ New Features
-- **Enhanced Performance**: 40% faster startup speed, 30% less memory usage
-- **Simplified Architecture**: Codebase reduced by 40% (34→23 files)
-- **Stable API Freeze**: All public APIs now stable with `@api-stable` guarantee
-- **New Context System**: Coroutine-local context variables support
-- **Structured Concurrency**: CancellationScope, TaskGroup, GatherStrategy support
-- **Better Error Handling**: Improved exception propagation with GatherException
+#### ✨ 新增特性
+- **增强的性能**: 启动速度提升 40%，内存使用减少 30%
+- **简化架构**: 代码库减少 40%（34→23 个文件）
+- **稳定 API 冻结**: 所有公共 API 现在稳定，使用 `@api-stable` 保证
+- **新增 Context 系统**: 协程本地上下文变量支持
+- **结构化并发**: CancellationScope、TaskGroup、GatherStrategy 支持
+- **更好的错误处理**: 改进的异常传播，支持 GatherException
 
-#### 🔄 Breaking Changes (for pfinal-asyncio v3.0)
+#### 🔄 破坏性变更（针对 pfinal-asyncio v3.0）
 - **Dependency Update**: Now requires `pfinalclub/asyncio ^3.0`
 - **Production Tools**: Moved to separate extension package `pfinal/asyncio-production`
   - Production features still available as optional dependency
@@ -25,12 +25,12 @@
 - **Updated Documentation**: All API references updated for v3.0
 - **Improved Logging**: Better integration with new logging system
 
-#### ✅ Compatibility
-- **100% API Compatible**: All existing Room, Player, GameServer APIs unchanged
-- **Backward Compatible**: All existing code continues to work without modification
-- **Migration Path**: Drop-in replacement with optional new features
+#### ✅ 兼容性
+- **100% API 兼容**: 所有现有的 Room、Player、GameServer API 保持不变
+- **向后兼容**: 所有现有代码无需修改即可继续工作
+- **迁移路径**: 可直接替换，并选择性地使用新特性
 
-#### 📦 Dependencies
+#### 📦 依赖变更
 - `pfinalclub/asyncio: ^2.1` → `^3.0`
 - `workerman/workerman: ^4.1` (unchanged)
 - `workerman/gateway-worker: ^3.0` (unchanged)
