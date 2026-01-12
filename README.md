@@ -1,6 +1,6 @@
 # pfinal-asyncio-gamekit
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -47,7 +47,7 @@ composer require pfinalclub/asyncio-gamekit
 ## 📋 要求
 
 - PHP >= 8.1
-- pfinalclub/asyncio >= 2.1
+- pfinalclub/asyncio >= 3.0
 - workerman/workerman >= 4.1
 
 ## 🚀 快速开始

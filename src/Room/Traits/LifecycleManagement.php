@@ -79,7 +79,7 @@ trait LifecycleManagement
         try {
             $this->onCreate();
             $this->onStart();
-            $this->run();
+            return $this->run();
         } catch (\Throwable $e) {
             $this->handleRoomError($e);
             throw $e;

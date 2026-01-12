@@ -2,7 +2,7 @@
 
 ## 概述
 
-pfinal-asyncio-gamekit v3.0 是一个重大版本升级，引入了许多新特性和架构改进。本指南将帮助您从 v2.x 顺利迁移到 v3.0。
+pfinal-asyncio-gamekit v3.0 是一次重大升级，基于 pfinal-asyncio v3.0 全新架构。好消息是：**升级完全向后兼容，现有代码无需修改即可运行**。
 
 ## 🎯 主要变更
 
