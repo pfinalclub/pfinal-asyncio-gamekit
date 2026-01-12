@@ -263,9 +263,43 @@ class GameServer
     {
         $room = $this->roomManager->getPlayerRoom($player);
         if ($room) {
-            \PfinalClub\Asyncio\create_task(
-                fn() => $room->onPlayerMessage($player, $event, $payload)
-            );
+            try {
+                \PfinalClub\Asyncio\create_task(
+                    fn() => $this->handleRoomMessage($room, $player, $event, $payload)
+                );
+            } catch (\RuntimeException $e) {
+                // 如果无法创建异步任务（非异步环境），直接同步处理
+                if (str_contains($e->getMessage(), 'No active CancellationScope')) {
+                    $this->handleRoomMessage($room, $player, $event, $payload);
+                } else {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理房间消息（带异常处理）
+     */
+    private function handleRoomMessage($room, Player $player, string $event, mixed $payload): void
+    {
+        try {
+            $room->onPlayerMessage($player, $event, $payload);
+        } catch (\Throwable $e) {
+            LoggerFactory::error("Error handling room message", [
+                'room_id' => $room->getId(),
+                'player_id' => $player->getId(),
+                'event' => $event,
+                'error' => $e->getMessage(),
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            // 发送错误消息给玩家
+            $player->send(GameEvents::ERROR, [
+                'message' => 'Failed to process message',
+                'code' => 'MESSAGE_PROCESSING_ERROR'
+            ]);
         }
     }
 

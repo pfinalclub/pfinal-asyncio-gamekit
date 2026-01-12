@@ -4,7 +4,7 @@
     "type": "library",
     "keywords": ["asyncio", "game", "framework", "workerman", "async"],
     "license": "MIT",
-    "version":"3.0.2",
+    "version":"3.0.1",
     "authors": [
         {
             "name": "PFinal Club",

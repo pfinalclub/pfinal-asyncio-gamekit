@@ -52,8 +52,9 @@ class GuessNumberRoom extends Room
         $startTime = time();
         $gameEnded = false;
 
-        // 添加定时器更新剩余时间
-        $this->addTimer(5, function () use (&$startTime, $timeLimit, &$gameEnded) {
+        // 尝试添加定时器更新剩余时间（如果环境支持）
+        // 注意：在 Workerman 环境下，定时器可能不可用，所以使用轮询方式
+        $timerId = $this->addTimer(5, function () use (&$startTime, $timeLimit, &$gameEnded) {
             if ($gameEnded) {
                 return;
             }
@@ -67,8 +68,20 @@ class GuessNumberRoom extends Room
         }, true);
 
         // 等待游戏结束或超时
+        $lastBroadcastTime = 0;
         while (!$gameEnded && (time() - $startTime) < $timeLimit) {
             sleep(1);
+            
+            // 如果定时器不可用，手动每5秒广播一次时间更新
+            if ($timerId === 0 && (time() - $lastBroadcastTime) >= 5) {
+                $elapsed = time() - $startTime;
+                $remaining = $timeLimit - $elapsed;
+                
+                if ($remaining > 0) {
+                    $this->broadcast('game:time_update', ['remaining' => $remaining]);
+                    $lastBroadcastTime = time();
+                }
+            }
             
             if ($this->get('game_ended', false)) {
                 $gameEnded = true;
@@ -145,22 +158,57 @@ class GuessNumberRoom extends Room
 
 // ==================== 启动服务器 ====================
 
-echo "=== WebSocket 游戏服务器 ===\n";
-echo "监听地址: ws://0.0.0.0:2345\n";
-echo "支持游戏: GuessNumberRoom\n\n";
+// 检查命令行参数
+$command = $argv[1] ?? 'start';
+$mode = $argv[2] ?? '';
 
+// 显示使用说明
+if ($command === 'help' || $command === '-h' || $command === '--help') {
+    echo "=== WebSocket 游戏服务器 ===\n";
+    echo "监听地址: ws://0.0.0.0:2345\n";
+    echo "支持游戏: GuessNumberRoom\n\n";
+    echo "使用方法:\n";
+    echo "1. 连接 WebSocket: ws://localhost:2345\n";
+    echo "2. 设置名称: {\"event\": \"set_name\", \"data\": {\"name\": \"YourName\"}}\n";
+    echo "3. 快速匹配: {\"event\": \"quick_match\", \"data\": {\"room_class\": \"GuessNumberRoom\"}}\n";
+    echo "4. 猜数字: {\"event\": \"guess\", \"data\": {\"number\": 50}}\n";
+    echo "5. 查看房间: {\"event\": \"get_rooms\"}\n\n";
+    echo "命令:\n";
+    echo "  start    启动服务器（调试模式）\n";
+    echo "  start -d 启动服务器（守护进程模式）\n";
+    echo "  stop     停止服务器\n";
+    echo "  restart  重启服务器\n";
+    echo "  reload   重载代码\n";
+    echo "  status   查看状态\n";
+    exit(0);
+}
+
+// 创建服务器实例
 $server = new GameServer('0.0.0.0', 2345, [
     'name' => 'GuessNumberGameServer',
-    'count' => 1, // 单进程用于测试
+    'count' => ($mode === '-d') ? 4 : 1, // 守护进程模式使用多进程
 ]);
 
-echo "服务器启动中...\n";
-echo "\n使用方法:\n";
-echo "1. 连接 WebSocket: ws://localhost:2345\n";
-echo "2. 设置名称: {\"event\": \"set_name\", \"data\": {\"name\": \"YourName\"}}\n";
-echo "3. 快速匹配: {\"event\": \"quick_match\", \"data\": {\"room_class\": \"GuessNumberRoom\"}}\n";
-echo "4. 猜数字: {\"event\": \"guess\", \"data\": {\"number\": 50}}\n";
-echo "5. 查看房间: {\"event\": \"get_rooms\"}\n\n";
+// 设置 Workerman 运行模式
+if ($mode === '-d') {
+    \Workerman\Worker::$daemonize = true;
+}
 
+// 显示启动信息
+if ($command === 'start') {
+    echo "=== WebSocket 游戏服务器 ===\n";
+    echo "监听地址: ws://0.0.0.0:2345\n";
+    echo "支持游戏: GuessNumberRoom\n";
+    echo "运行模式: " . ($mode === '-d' ? '守护进程' : '调试模式') . "\n\n";
+    echo "使用方法:\n";
+    echo "1. 连接 WebSocket: ws://localhost:2345\n";
+    echo "2. 设置名称: {\"event\": \"set_name\", \"data\": {\"name\": \"YourName\"}}\n";
+    echo "3. 快速匹配: {\"event\": \"quick_match\", \"data\": {\"room_class\": \"GuessNumberRoom\"}}\n";
+    echo "4. 猜数字: {\"event\": \"guess\", \"data\": {\"number\": 50}}\n";
+    echo "5. 查看房间: {\"event\": \"get_rooms\"}\n\n";
+    echo "服务器启动中...\n\n";
+}
+
+// 运行服务器（Workerman 会自动处理 start/stop/restart/reload/status 命令）
 $server->run();
 

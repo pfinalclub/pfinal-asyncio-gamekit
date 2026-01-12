@@ -25,12 +25,20 @@ trait TimerManagement
      */
     public function addTimer(float $interval, callable $callback, bool $persistent = false): int
     {
-        $loop = get_event_loop();
-        $timerId = $loop->addTimer($interval, $callback, $persistent);
-        
-        if ($timerId !== null) {
-            $this->timerIds[] = $timerId;
-            return $timerId;
+        try {
+            $loop = get_event_loop();
+            $timerId = $loop->addTimer($interval, $callback, $persistent);
+            
+            if ($timerId !== null) {
+                $this->timerIds[] = $timerId;
+                return $timerId;
+            }
+        } catch (\Throwable $e) {
+            // 如果无法获取事件循环（如非异步环境），记录警告但不抛出异常
+            \PfinalClub\AsyncioGamekit\Logger\LoggerFactory::warning("Cannot add timer: {message}. Timer functionality may not be available in this environment.", [
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+            ]);
         }
         
         return 0;
@@ -44,8 +52,12 @@ trait TimerManagement
      */
     public function removeTimer(int $timerId): bool
     {
-        $loop = get_event_loop();
-        $loop->delTimer($timerId);
+        try {
+            $loop = get_event_loop();
+            $loop->delTimer($timerId);
+        } catch (\Throwable $e) {
+            // 忽略错误，继续清理本地记录
+        }
         
         $beforeCount = count($this->timerIds);
         $this->timerIds = array_filter($this->timerIds, fn($id) => $id !== $timerId);
@@ -68,13 +80,17 @@ trait TimerManagement
      */
     protected function clearAllTimers(): void
     {
-        $loop = get_event_loop();
-        foreach ($this->timerIds as $timerId) {
-            try {
-                $loop->delTimer($timerId);
-            } catch (\Throwable $e) {
-                // 忽略已删除的定时器错误
+        try {
+            $loop = get_event_loop();
+            foreach ($this->timerIds as $timerId) {
+                try {
+                    $loop->delTimer($timerId);
+                } catch (\Throwable $e) {
+                    // 忽略已删除的定时器错误
+                }
             }
+        } catch (\Throwable $e) {
+            // 如果无法获取事件循环，只清理本地记录
         }
         $this->timerIds = [];
     }

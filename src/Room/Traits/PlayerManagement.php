@@ -184,11 +184,28 @@ trait PlayerManagement
                     LoggerFactory::error("Failed to start room synchronously", [
                         'room_id' => $this->id,
                         'error' => $startError->getMessage(),
+                        'exception' => get_class($startError),
+                        'trace' => $startError->getTraceAsString(),
                     ]);
+                    // 重新抛出异常，让上层处理
+                    throw $startError;
                 }
             } else {
+                // 其他运行时异常，记录并重新抛出
+                LoggerFactory::error("Failed to create async task for room start", [
+                    'room_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]);
                 throw $e;
             }
+        } catch (\Throwable $e) {
+            // 捕获所有异常，记录但不中断流程
+            LoggerFactory::error("Unexpected error while starting room", [
+                'room_id' => $this->id,
+                'error' => $e->getMessage(),
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 

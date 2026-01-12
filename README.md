@@ -1,6 +1,6 @@
 # pfinal-asyncio-gamekit
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
+[![Version](https://img.shields.io/badge/version-3.0.1-blue.svg)](https://github.com/pfinalclub/pfinal-asyncio-gamekit)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
