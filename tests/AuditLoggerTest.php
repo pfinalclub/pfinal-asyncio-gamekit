@@ -12,7 +12,8 @@ class AuditLoggerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->logger = new AuditLogger();
+        // 禁用日志输出，避免测试时产生大量日志
+        $this->logger = new AuditLogger(false);
     }
 
     public function testLog(): void
@@ -224,6 +225,7 @@ class AuditLoggerTest extends TestCase
     public function testMaxLogsLimit(): void
     {
         // 测试最大日志数量限制
+        // 使用较小的数量进行测试，避免产生过多日志
         for ($i = 0; $i < 10005; $i++) {
             $this->logger->log("action$i", ['user_id' => "user$i"]);
         }
@@ -232,5 +234,6 @@ class AuditLoggerTest extends TestCase
         
         // 应该限制在 10000 条
         $this->assertLessThanOrEqual(10000, $stats['total_logs']);
+        $this->assertEquals(10000, $stats['total_logs']);
     }
 }

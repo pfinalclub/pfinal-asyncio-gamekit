@@ -16,6 +16,17 @@ class AuditLogger
 
     /** @var int 最大日志数量 */
     private int $maxLogs = 10000;
+    
+    /** @var bool 是否输出日志到 LoggerFactory */
+    private bool $enableLogging = true;
+
+    /**
+     * 构造函数
+     */
+    public function __construct(bool $enableLogging = true)
+    {
+        $this->enableLogging = $enableLogging;
+    }
 
     /**
      * 记录审计日志
@@ -38,8 +49,10 @@ class AuditLogger
             array_shift($this->logs);
         }
 
-        // 同时记录到普通日志
-        LoggerFactory::info("Audit: {$action}", $context);
+        // 同时记录到普通日志（如果启用）
+        if ($this->enableLogging) {
+            LoggerFactory::info("Audit: {$action}", $context);
+        }
     }
 
     /**
