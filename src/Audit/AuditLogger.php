@@ -87,7 +87,7 @@ class AuditLogger
     {
         $actionCounts = [];
         foreach ($this->logs as $log) {
-            $action = $log['action'];
+            $action = $log['action'] ?? 'unknown';
             $actionCounts[$action] = ($actionCounts[$action] ?? 0) + 1;
         }
 

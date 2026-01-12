@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use PfinalClub\AsyncioGamekit\GameServer;
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Logger\{LoggerFactory, LogLevel, WorkermanLogHandler};
 use PfinalClub\AsyncioGamekit\Persistence\FileAdapter;

@@ -5,7 +5,7 @@ namespace PfinalClub\AsyncioGamekit;
 
 use Workerman\Worker;
 use Workerman\Connection\TcpConnection;
-use PfinalClub\AsyncioGamekit\Exceptions\{GameException, RoomException, ServerException};
+use PfinalClub\AsyncioGamekit\Exceptions\{GameException, RoomException, ServerException, EnhancedExceptionHandler};
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use PfinalClub\AsyncioGamekit\RateLimit\{RateLimiterInterface, TokenBucketLimiter, RateLimitConfig};
 use PfinalClub\AsyncioGamekit\Security\{MessageSigner, InputValidator};
@@ -44,6 +44,9 @@ class GameServer
     /** @var bool 是否启用消息签名 */
     protected bool $signatureRequired = false;
 
+    /** @var EnhancedExceptionHandler 增强异常处理器 */
+    protected EnhancedExceptionHandler $exceptionHandler;
+
     /**
      * @param string $host 监听地址
      * @param int $port 监听端口
@@ -78,6 +81,7 @@ class GameServer
         $this->worker->count = $this->config['count'];
         
         $this->roomManager = new RoomManager();
+        $this->exceptionHandler = new EnhancedExceptionHandler($this->roomManager);
         
         $this->setupCallbacks();
     }
@@ -88,7 +92,9 @@ class GameServer
     private function setupCallbacks(): void
     {
         $this->worker->onConnect = function (TcpConnection $connection) {
-            echo "New connection: {$connection->id}\n";
+            LoggerFactory::debug("New connection: {connection_id}", [
+                'connection_id' => $connection->id
+            ]);
             $this->onConnect($connection);
         };
 
@@ -97,12 +103,16 @@ class GameServer
         };
 
         $this->worker->onClose = function (TcpConnection $connection) {
-            echo "Connection closed: {$connection->id}\n";
+            LoggerFactory::debug("Connection closed: {connection_id}", [
+                'connection_id' => $connection->id
+            ]);
             $this->onClose($connection);
         };
 
         $this->worker->onWorkerStart = function () {
-            echo "{$this->config['name']} started\n";
+            LoggerFactory::info("Server {name} started", [
+                'name' => $this->config['name']
+            ]);
             $this->onWorkerStart();
         };
     }
@@ -148,9 +158,9 @@ class GameServer
             $message = $this->validateAndParseMessage($data, $player);
             $this->dispatchMessage($player, $message);
         } catch (GameException $e) {
-            $this->handleGameException($player, $e);
+            $this->exceptionHandler->handleGameException($player, $e);
         } catch (\Throwable $e) {
-            $this->handleGenericException($player, $e);
+            $this->exceptionHandler->handleGenericException($player, $e);
         }
     }
 
@@ -257,32 +267,6 @@ class GameServer
                 fn() => $room->onPlayerMessage($player, $event, $payload)
             );
         }
-    }
-
-    /**
-     * 处理游戏异常
-     */
-    private function handleGameException(Player $player, GameException $e): void
-    {
-        $player->send(GameEvents::ERROR, [
-            'message' => $e->getMessage(),
-            'code' => $e->getCode(),
-            'context' => $e->getContext()
-        ]);
-        
-        $this->logError($e);
-    }
-
-    /**
-     * 处理通用异常
-     */
-    private function handleGenericException(Player $player, \Throwable $e): void
-    {
-        $player->send(GameEvents::ERROR, [
-            'message' => 'Internal server error'
-        ]);
-        
-        $this->logError($e);
     }
 
     /**
@@ -467,9 +451,9 @@ class GameServer
             return false;
         }
         
-        // 如果没有配置白名单，检查类是否存在且继承自 Room
+        // 如果没有配置白名单，检查类是否存在且继承自 Room\Room
         if (empty($this->allowedRoomClasses)) {
-            return class_exists($roomClass) && is_subclass_of($roomClass, Room::class);
+            return class_exists($roomClass) && is_subclass_of($roomClass, \PfinalClub\AsyncioGamekit\Room\Room::class);
         }
         
         // 使用白名单验证

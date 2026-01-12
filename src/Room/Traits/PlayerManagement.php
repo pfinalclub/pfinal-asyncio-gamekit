@@ -8,6 +8,7 @@ use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use PfinalClub\AsyncioGamekit\Constants\GameEvents;
+use PfinalClub\AsyncioGamekit\Constants\RoomStatus;
 use function PfinalClub\Asyncio\create_task;
 
 /**
@@ -26,7 +27,7 @@ trait PlayerManagement
      */
     public function addPlayer(Player $player): bool
     {
-        if (count($this->players) >= $this->cachedMaxPlayers) {
+        if ($this->getPlayerCount() >= $this->cachedMaxPlayers) {
             throw RoomException::roomFull($this->id, $this->cachedMaxPlayers);
         }
 
@@ -34,12 +35,15 @@ trait PlayerManagement
             throw RoomException::playerAlreadyInRoom($player->getId(), $this->id);
         }
 
-        if ($this->status === 'running') {
+        if ($this->status === RoomStatus::RUNNING) {
             throw RoomException::roomAlreadyStarted($this->id);
         }
 
         $this->players[$player->getId()] = $player;
         $player->setRoom($this);
+        
+        // 更新缓存的玩家数量
+        $this->cachedPlayerCount = count($this->players);
 
         // 【性能优化】清除玩家列表缓存（不影响其他缓存）
         $this->invalidatePlayersListCache();
@@ -52,7 +56,17 @@ trait PlayerManagement
 
         // 检查是否自动开始
         if (($this->config['auto_start'] ?? false) && $this->canStart()) {
-            create_task(fn() => $this->start());
+            // 仅在异步环境中启动任务
+            try {
+                create_task(fn() => $this->start());
+            } catch (\RuntimeException $e) {
+                // 如果没有活动的CancellationScope，直接同步启动
+                if (strpos($e->getMessage(), 'No active CancellationScope') !== false) {
+                    $this->start();
+                } else {
+                    throw $e;
+                }
+            }
         }
 
         return true;
@@ -70,6 +84,9 @@ trait PlayerManagement
         $player = $this->players[$playerId];
         unset($this->players[$playerId]);
         $player->setRoom(null);
+        
+        // 更新缓存的玩家数量
+        $this->cachedPlayerCount = count($this->players);
 
         // 【性能优化】清除玩家列表缓存（不影响其他缓存）
         $this->invalidatePlayersListCache();
@@ -81,17 +98,25 @@ trait PlayerManagement
         $this->broadcast(GameEvents::PLAYER_LEAVE, ['player_id' => $playerId]);
 
         // 如果房间为空且未运行，延迟销毁（给新玩家加入的机会）
-        if (empty($this->players) && $this->status !== 'running') {
-            create_task(function() {
-                \PfinalClub\Asyncio\sleep(5); // 延迟 5 秒
-                // 再次检查是否仍为空
-                if (empty($this->players)) {
-                    LoggerFactory::info("Auto-destroying empty room {room_id}", [
-                        'room_id' => $this->id
-                    ]);
-                    $this->destroy();
+        if (empty($this->players) && $this->status !== RoomStatus::RUNNING) {
+            // 仅在异步环境中启动延迟销毁任务
+            try {
+                create_task(function() {
+                    \PfinalClub\Asyncio\sleep(5); // 延迟 5 秒
+                    // 再次检查是否仍为空
+                    if (empty($this->players)) {
+                        LoggerFactory::info("Auto-destroying empty room {room_id}", [
+                            'room_id' => $this->id
+                        ]);
+                        $this->destroy();
+                    }
+                });
+            } catch (\RuntimeException $e) {
+                // 如果没有活动的CancellationScope，跳过延迟销毁
+                if (strpos($e->getMessage(), 'No active CancellationScope') === false) {
+                    throw $e;
                 }
-            });
+            }
         }
 
         return true;
@@ -115,16 +140,38 @@ trait PlayerManagement
         return $this->players;
     }
 
+    /** @var int|null 缓存的玩家数量 */
+    private ?int $cachedPlayerCount = null;
+
     /**
-     * 获取玩家数量
+     * 获取玩家数量（带缓存）
      */
     public function getPlayerCount(): int
     {
-        return count($this->players);
+        if ($this->cachedPlayerCount === null) {
+            $this->cachedPlayerCount = count($this->players);
+        }
+        return $this->cachedPlayerCount;
     }
 
     /**
-     * 玩家加入时调用（子类可重写）
+     * 检查玩家是否在房间中
+     */
+    public function hasPlayer($player): bool
+    {
+        if ($player instanceof Player) {
+            return isset($this->players[$player->getId()]);
+        }
+        
+        if (is_string($player)) {
+            return isset($this->players[$player]);
+        }
+        
+        return false;
+    }
+
+    /**
+     * 玩家加入时的回调
      */
     protected function onPlayerJoin(Player $player): void
     {

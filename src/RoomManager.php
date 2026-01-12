@@ -6,6 +6,8 @@ namespace PfinalClub\AsyncioGamekit;
 use PfinalClub\AsyncioGamekit\Exceptions\{RoomException, ManagerException};
 use PfinalClub\AsyncioGamekit\Memory\{MemoryManager, MemoryManagerInterface};
 use PfinalClub\AsyncioGamekit\Manager\RoomManagerObserver;
+use PfinalClub\AsyncioGamekit\Room\Room;
+use PfinalClub\AsyncioGamekit\Constants\RoomStatus;
 
 /**
  * RoomManager 房间管理器
@@ -25,11 +27,20 @@ class RoomManager
     /** @var int 清理间隔（秒） */
     private int $cleanupInterval = 300;
     
-    /** @var array<string, array<string, array<string, Room>>> 按类名和状态分组的房间索引 */
-    private array $roomIndex = [];
+    /** @var array<string, array<string, Room>> 按类名分组的房间索引 */
+    private array $roomsByClass = [];
     
-    /** @var array<string, array<string, Room>> 未满房间索引（O(1)查找） - 按类名 -> 房间ID -> Room */
-    private array $availableRoomIndex = [];
+    /** @var array<string, array<string, Room>> 按状态分组的房间索引 */
+    private array $roomsByStatus = [];
+    
+    /** @var array<string, Room> 未满房间索引（O(1)查找） */
+    private array $availableRooms = [];
+    
+    /** @var array<string, array<string, Room>> 按房间类分组的未满房间索引（O(1)查找） */
+    private array $availableRoomsByClass = [];
+    
+    /** @var int 缓存的房间数量 */
+    private int $cachedRoomCount = 0;
     
     /** @var MemoryManagerInterface 内存管理器 */
     private MemoryManagerInterface $memoryManager;
@@ -41,9 +52,9 @@ class RoomManager
     private array $stats = [
         'total_rooms' => 0,
         'rooms_by_status' => [
-            'waiting' => 0,
-            'running' => 0,
-            'finished' => 0,
+            RoomStatus::WAITING => 0,
+            RoomStatus::RUNNING => 0,
+            RoomStatus::FINISHED => 0,
         ],
     ];
 
@@ -58,6 +69,7 @@ class RoomManager
         $this->memoryManager = $memoryManager ?? new MemoryManager(256, 0.8);
         $this->maxRooms = $maxRooms;
         $this->roomObserver = new RoomManagerObserver($this);
+        $this->cachedRoomCount = 0;
     }
 
     /**
@@ -70,13 +82,16 @@ class RoomManager
      */
     public function createRoom(string $roomClass, ?string $roomId = null, array $config = []): Room
     {
-        // 检查房间数限制
-        if (count($this->rooms) >= $this->maxRooms) {
+        // 检查房间数限制（使用缓存计数）
+        if ($this->cachedRoomCount >= $this->maxRooms) {
             // 尝试清理
             $this->cleanupFinishedRooms();
             
+            // 重新计算缓存计数
+            $this->cachedRoomCount = count($this->rooms);
+            
             // 如果还是超限，抛出异常
-            if (count($this->rooms) >= $this->maxRooms) {
+            if ($this->cachedRoomCount >= $this->maxRooms) {
                 throw ManagerException::maxLimitReached('rooms', $this->maxRooms);
             }
         }
@@ -95,8 +110,10 @@ class RoomManager
             throw ManagerException::resourceAlreadyExists('Room', $roomId);
         }
 
-        if (!is_subclass_of($roomClass, Room::class)) {
-            throw ManagerException::invalidArgument('roomClass', "$roomClass must extend " . Room::class);
+        // 检查是否继承自 Room\Room
+        if (!is_subclass_of($roomClass, \PfinalClub\AsyncioGamekit\Room\Room::class)) {
+            throw ManagerException::invalidArgument('roomClass', 
+                "$roomClass must extend " . \PfinalClub\AsyncioGamekit\Room\Room::class);
         }
 
         $room = new $roomClass($roomId, $config);
@@ -106,14 +123,15 @@ class RoomManager
         $room->attach($this->roomObserver);
         
         // 添加到索引（新房间默认为 waiting 状态）
-        $this->addToIndex($roomClass, 'waiting', $roomId, $room);
+        $this->addToIndex($roomClass, RoomStatus::WAITING, $roomId, $room);
         
         // 【性能优化】添加到未满房间索引（新房间默认未满）
         $this->addToAvailableIndex($roomClass, $roomId, $room);
         
-        // 更新实时统计
+        // 更新实时统计和缓存
         $this->stats['total_rooms']++;
-        $this->stats['rooms_by_status']['waiting']++;
+        $this->stats['rooms_by_status'][RoomStatus::WAITING]++;
+        $this->cachedRoomCount++;
 
         return $room;
     }
@@ -137,6 +155,38 @@ class RoomManager
     }
 
     /**
+     * 获取指定类别的所有房间
+     * 
+     * @param string $roomClass 房间类名
+     * @return array<string, Room>
+     */
+    public function getRoomsByClass(string $roomClass): array
+    {
+        return $this->roomsByClass[$roomClass] ?? [];
+    }
+
+    /**
+     * 获取指定状态的所有房间
+     * 
+     * @param string $status 房间状态
+     * @return array<string, Room>
+     */
+    public function getRoomsByStatus(string $status): array
+    {
+        return $this->roomsByStatus[$status] ?? [];
+    }
+
+    /**
+     * 获取所有未满的房间
+     * 
+     * @return array<string, Room>
+     */
+    public function getAvailableRooms(): array
+    {
+        return $this->availableRooms;
+    }
+
+    /**
      * 删除房间（异步清理）
      */
     public function removeRoom(string $roomId): mixed
@@ -156,12 +206,13 @@ class RoomManager
         }
         
         // 从索引中移除
-        $roomClass = get_class($room);
+        $roomClass = $room->getClassName();
         $status = $room->getStatus();
         $this->removeFromIndex($roomClass, $status, $roomId);
 
-        // 更新实时统计
+        // 更新实时统计和缓存
         $this->stats['total_rooms']--;
+        $this->cachedRoomCount--;
         if (isset($this->stats['rooms_by_status'][$status])) {
             $this->stats['rooms_by_status'][$status]--;
         }
@@ -248,19 +299,18 @@ class RoomManager
     /**
      * 查找可用房间（有空位且未开始）
      * 
-     * 【性能优化】使用专用索引，从 O(n) 优化到 O(1)
+     * 【性能优化】使用按类分组的索引，O(1) 复杂度
      */
     public function findAvailableRoom(string $roomClass): ?Room
     {
         // 【关键优化】直接从未满房间索引中获取，O(1) 复杂度
-        $availableRooms = $this->availableRoomIndex[$roomClass] ?? [];
-        
-        if (empty($availableRooms)) {
+        if (!isset($this->availableRoomsByClass[$roomClass])) {
             return null;
         }
         
-        // 返回第一个未满房间
-        return reset($availableRooms);
+        // 返回第一个未满房间（FIFO策略）
+        $rooms = $this->availableRoomsByClass[$roomClass];
+        return reset($rooms) ?: null;
     }
 
     /**
@@ -323,7 +373,7 @@ class RoomManager
         $cleaned = 0;
         
         foreach ($this->rooms as $roomId => $room) {
-            if ($room->getStatus() === 'finished') {
+            if ($room->getStatus() === RoomStatus::FINISHED) {
                 // 记录结束时间
                 if (!isset($this->finishedRooms[$roomId])) {
                     $this->finishedRooms[$roomId] = $now;
@@ -369,13 +419,17 @@ class RoomManager
      */
     private function addToIndex(string $roomClass, string $status, string $roomId, Room $room): void
     {
-        if (!isset($this->roomIndex[$roomClass])) {
-            $this->roomIndex[$roomClass] = [];
+        // 添加到按类名索引
+        if (!isset($this->roomsByClass[$roomClass])) {
+            $this->roomsByClass[$roomClass] = [];
         }
-        if (!isset($this->roomIndex[$roomClass][$status])) {
-            $this->roomIndex[$roomClass][$status] = [];
+        $this->roomsByClass[$roomClass][$roomId] = $room;
+        
+        // 添加到按状态索引
+        if (!isset($this->roomsByStatus[$status])) {
+            $this->roomsByStatus[$status] = [];
         }
-        $this->roomIndex[$roomClass][$status][$roomId] = $room;
+        $this->roomsByStatus[$status][$roomId] = $room;
     }
     
     /**
@@ -387,14 +441,16 @@ class RoomManager
      */
     private function removeFromIndex(string $roomClass, string $status, string $roomId): void
     {
-        unset($this->roomIndex[$roomClass][$status][$roomId]);
-        
-        // 清理空的索引
-        if (empty($this->roomIndex[$roomClass][$status])) {
-            unset($this->roomIndex[$roomClass][$status]);
+        // 从按类名索引中移除
+        unset($this->roomsByClass[$roomClass][$roomId]);
+        if (empty($this->roomsByClass[$roomClass])) {
+            unset($this->roomsByClass[$roomClass]);
         }
-        if (empty($this->roomIndex[$roomClass])) {
-            unset($this->roomIndex[$roomClass]);
+        
+        // 从按状态索引中移除
+        unset($this->roomsByStatus[$status][$roomId]);
+        if (empty($this->roomsByStatus[$status])) {
+            unset($this->roomsByStatus[$status]);
         }
     }
     
@@ -403,10 +459,13 @@ class RoomManager
      */
     private function addToAvailableIndex(string $roomClass, string $roomId, Room $room): void
     {
-        if (!isset($this->availableRoomIndex[$roomClass])) {
-            $this->availableRoomIndex[$roomClass] = [];
+        $this->availableRooms[$roomId] = $room;
+        
+        // 同时添加到按类分组的索引（O(1)查找优化）
+        if (!isset($this->availableRoomsByClass[$roomClass])) {
+            $this->availableRoomsByClass[$roomClass] = [];
         }
-        $this->availableRoomIndex[$roomClass][$roomId] = $room;
+        $this->availableRoomsByClass[$roomClass][$roomId] = $room;
     }
     
     /**
@@ -414,7 +473,15 @@ class RoomManager
      */
     private function removeFromAvailableIndex(string $roomClass, string $roomId): void
     {
-        unset($this->availableRoomIndex[$roomClass][$roomId]);
+        unset($this->availableRooms[$roomId]);
+        
+        // 同时从按类分组的索引中移除
+        unset($this->availableRoomsByClass[$roomClass][$roomId]);
+        
+        // 如果该类的未满房间为空，清理索引
+        if (empty($this->availableRoomsByClass[$roomClass])) {
+            unset($this->availableRoomsByClass[$roomClass]);
+        }
     }
     
     /**
@@ -423,12 +490,12 @@ class RoomManager
      */
     public function updateRoomAvailability(Room $room): void
     {
-        $roomClass = get_class($room);
         $roomId = $room->getId();
         $isFull = $room->getPlayerCount() >= $room->getMaxPlayers();
-        $isRunning = $room->getStatus() === 'running';
+        $isRunning = $room->getStatus() === RoomStatus::RUNNING;
         
         // 只有 waiting 状态且未满的房间才在未满索引中
+        $roomClass = $room->getClassName();
         if ($isRunning || $isFull) {
             // 房间已满或已开始，从未满索引中移除
             $this->removeFromAvailableIndex($roomClass, $roomId);
@@ -447,7 +514,7 @@ class RoomManager
      */
     public function updateRoomIndex(Room $room, string $oldStatus, string $newStatus): void
     {
-        $roomClass = get_class($room);
+        $roomClass = $room->getClassName();
         $roomId = $room->getId();
         
         $this->removeFromIndex($roomClass, $oldStatus, $roomId);

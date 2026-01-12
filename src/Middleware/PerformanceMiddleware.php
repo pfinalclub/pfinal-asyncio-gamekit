@@ -41,9 +41,14 @@ class PerformanceMiddleware implements MiddlewareInterface
                 LoggerFactory::warning("Slow message processing detected", [
                     'event' => $event,
                     'player_id' => $player->getId(),
+                    'player_name' => $player->getName(),
                     'duration' => round($duration, 4),
+                    'duration_ms' => round($duration * 1000, 2),
                     'threshold' => $this->slowThreshold,
+                    'threshold_ms' => round($this->slowThreshold * 1000, 2),
                     'memory_used_bytes' => $memoryUsed,
+                    'memory_used_mb' => round($memoryUsed / 1024 / 1024, 2),
+                    'exceeded_by' => round(($duration - $this->slowThreshold) * 1000, 2) . 'ms',
                 ]);
             }
 

@@ -7,6 +7,7 @@ namespace PfinalClub\AsyncioGamekit\Broadcast;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 use PfinalClub\AsyncioGamekit\Constants\GameEvents;
+use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
 use function PfinalClub\Asyncio\create_task;
 
 /**
@@ -83,12 +84,11 @@ class BroadcastQueue
             }
 
             try {
-                    // 将多个消息合并成一个批量消息
-                    $batchMessage = json_encode([
-                        'event' => GameEvents::BATCH,
-                        'data' => ['messages' => $messages],
-                        'timestamp' => microtime(true),
-                    ], JSON_THROW_ON_ERROR);
+                // 将多个消息合并成一个批量消息
+                $batchMessage = JsonEncoder::encodeMessage(
+                    GameEvents::BATCH,
+                    ['messages' => $messages]
+                );
 
                 $player->send($batchMessage, null, true);
                 $this->sendCount += count($messages);

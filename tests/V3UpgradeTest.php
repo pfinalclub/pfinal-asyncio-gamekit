@@ -15,7 +15,7 @@ class V3UpgradeTest extends TestCase
     public function testBasicRoomCompatibility(): void
     {
         // 测试基础的 Room 类仍然可用
-        $room = new class('test_room') extends \PfinalClub\AsyncioGamekit\Room {
+        $room = new class('test_room') extends \PfinalClub\AsyncioGamekit\Room\Room {
             protected function run(): mixed
             {
                 return 'test_result';
@@ -58,13 +58,13 @@ class V3UpgradeTest extends TestCase
         // 测试示例文件存在
         $this->assertTrue(file_exists(__DIR__ . '/../examples/SimpleGame.php'));
         $this->assertTrue(file_exists(__DIR__ . '/../examples/CardGame.php'));
-        $this->assertTrue(file_exists(__DIR__ . '/../examples/V30FeaturesDemo.php'));
+        $this->assertTrue(file_exists(__DIR__ . '/../examples/AdvancedGame.php'));
     }
     
     public function testNoBreakingChanges(): void
     {
         // 验证没有破坏性变更
-        $room = new class('no_breaking_test') extends \PfinalClub\AsyncioGamekit\Room {
+        $room = new class('no_breaking_test') extends \PfinalClub\AsyncioGamekit\Room\Room {
             protected function run(): mixed
             {
                 return 'no_breaking_result';

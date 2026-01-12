@@ -3,7 +3,7 @@
 declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Persistence;
 
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 
 /**
  * 房间状态管理器

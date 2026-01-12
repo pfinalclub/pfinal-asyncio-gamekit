@@ -6,6 +6,7 @@ namespace PfinalClub\AsyncioGamekit\Security;
 
 use PfinalClub\AsyncioGamekit\Exceptions\ServerException;
 use PfinalClub\AsyncioGamekit\Constants\GameEvents;
+use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
 
 /**
  * 输入验证器
@@ -53,7 +54,7 @@ class InputValidator
 
         // 2. JSON 格式检查
         try {
-            $message = json_decode($data, true, self::MAX_NEST_LEVEL, JSON_THROW_ON_ERROR);
+            $message = \PfinalClub\AsyncioGamekit\Utils\JsonEncoder::decode($data, self::MAX_NEST_LEVEL);
         } catch (\JsonException $e) {
             throw ServerException::invalidMessageFormat("Invalid JSON format: " . $e->getMessage());
         }

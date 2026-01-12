@@ -2,7 +2,7 @@
 
 namespace PfinalClub\AsyncioGamekit\Tests\Helpers;
 
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 
 /**
  * 测试用的空房间实现

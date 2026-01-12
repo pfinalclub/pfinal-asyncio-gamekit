@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PfinalClub\AsyncioGamekit\Manager;
 
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Exceptions\ManagerException;
 
@@ -55,7 +55,7 @@ class RoomRegistry
         $this->rooms[$roomId] = $room;
         
         // 添加到索引
-        $this->addToIndex(get_class($room), 'waiting', $roomId, $room);
+        $this->addToIndex($room->getClassName(), RoomStatus::WAITING, $roomId, $room);
     }
 
     /**
@@ -72,7 +72,7 @@ class RoomRegistry
         $room = $this->rooms[$roomId];
         
         // 从索引中移除
-        $this->removeFromIndex(get_class($room), $room->getStatus(), $roomId);
+        $this->removeFromIndex($room->getClassName(), $room->getStatus(), $roomId);
         
         // 移除所有玩家映射
         foreach ($room->getPlayers() as $player) {
@@ -154,7 +154,7 @@ class RoomRegistry
      * @param string $status
      * @return array<Room>
      */
-    public function findByClassAndStatus(string $roomClass, string $status = 'waiting'): array
+    public function findByClassAndStatus(string $roomClass, string $status = RoomStatus::WAITING): array
     {
         return $this->roomIndex[$roomClass][$status] ?? [];
     }
@@ -168,7 +168,7 @@ class RoomRegistry
      */
     public function updateIndex(Room $room, string $oldStatus, string $newStatus): void
     {
-        $roomClass = get_class($room);
+        $roomClass = $room->getClassName();
         $roomId = $room->getId();
         
         $this->removeFromIndex($roomClass, $oldStatus, $roomId);
@@ -187,9 +187,9 @@ class RoomRegistry
             'total_players' => count($this->playerRoomMap),
             'max_rooms' => $this->maxRooms,
             'rooms_by_status' => [
-                'waiting' => 0,
-                'running' => 0,
-                'finished' => 0,
+                RoomStatus::WAITING => 0,
+                RoomStatus::RUNNING => 0,
+                RoomStatus::FINISHED => 0,
             ],
         ];
 

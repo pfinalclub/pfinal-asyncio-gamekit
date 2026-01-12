@@ -56,7 +56,7 @@ composer require pfinalclub/asyncio-gamekit
 
 ```php
 <?php
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Player;
 use function PfinalClub\Asyncio\{run, sleep};
 

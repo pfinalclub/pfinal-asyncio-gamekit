@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace PfinalClub\AsyncioGamekit\Manager;
 
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Player;
+use PfinalClub\AsyncioGamekit\Constants\RoomStatus;
 
 /**
  * 玩家匹配服务
@@ -32,7 +33,7 @@ class PlayerMatchingService
     public function findAvailableRoom(string $roomClass): ?Room
     {
         // 使用索引快速查找 waiting 状态的房间
-        $waitingRooms = $this->registry->findByClassAndStatus($roomClass, 'waiting');
+        $waitingRooms = $this->registry->findByClassAndStatus($roomClass, RoomStatus::WAITING);
         
         foreach ($waitingRooms as $room) {
             if ($room->getPlayerCount() < $room->getMaxPlayers()) {
@@ -76,7 +77,7 @@ class PlayerMatchingService
     public function findBySkillLevel(Player $player, string $roomClass, int $skillLevel): ?Room
     {
         // 查找等待中的房间
-        $waitingRooms = $this->registry->findByClassAndStatus($roomClass, 'waiting');
+        $waitingRooms = $this->registry->findByClassAndStatus($roomClass, RoomStatus::WAITING);
         
         $bestMatch = null;
         $minSkillDiff = PHP_INT_MAX;
@@ -108,7 +109,7 @@ class PlayerMatchingService
     public function getMatchingStats(): array
     {
         return [
-            'available_rooms' => count($this->registry->findByClassAndStatus('*', 'waiting')),
+            'available_rooms' => count($this->registry->findByClassAndStatus('*', RoomStatus::WAITING)),
             'total_rooms' => count($this->registry->getAll()),
         ];
     }

@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit\Room;
 
 use PfinalClub\AsyncioGamekit\Player;
@@ -45,21 +44,6 @@ interface RoomManagerInterface
      * @return bool 是否成功
      */
     public function deleteRoom(string $roomId): bool;
-
-    /**
-     * 获取玩家所在房间
-     *
-     * @param Player $player 玩家实例
-     * @return Room|null 房间实例
-     */
-    public function getPlayerRoom(Player $player): ?Room;
-
-    /**
-     * 获取统计信息
-     *
-     * @return array 统计数据
-     */
-    public function getStats(): array;
 
     /**
      * 玩家加入房间

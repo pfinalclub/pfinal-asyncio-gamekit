@@ -3,6 +3,9 @@
 declare(strict_types=1);
 namespace PfinalClub\AsyncioGamekit;
 
+use PfinalClub\AsyncioGamekit\Room\Room;
+use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
+
 /**
  * Player 玩家类
  * 封装玩家通信和状态管理
@@ -105,11 +108,7 @@ class Player
                 // 如果已预编码，直接发送（$event 包含完整消息）
                 $message = $event;
             } else {
-            $message = json_encode([
-                'event' => $event,
-                'data' => $data,
-                'timestamp' => microtime(true)
-            ], JSON_THROW_ON_ERROR);
+                $message = JsonEncoder::encodeMessage($event, $data);
             }
             
             $result = $this->connection->send($message);

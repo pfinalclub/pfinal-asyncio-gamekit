@@ -51,6 +51,14 @@ trait DataStorage
     }
 
     /**
+     * 删除数据（delete 是 unset 的别名）
+     */
+    public function delete(string $key): void
+    {
+        $this->unset($key);
+    }
+
+    /**
      * 获取所有数据
      */
     public function getAllData(): array

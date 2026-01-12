@@ -97,7 +97,17 @@ class EventBus implements EventBusInterface
                     'listener_id' => $listenerId,
                     'error' => $e->getMessage(),
                     'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
+                
+                // 继续处理其他监听器，不中断事件传播
+                // 但可以选择性地停止事件传播（根据错误严重程度）
+                if ($e instanceof \Error) {
+                    // 严重错误，停止事件传播
+                    $eventObject->stopPropagation();
+                }
             }
         }
 

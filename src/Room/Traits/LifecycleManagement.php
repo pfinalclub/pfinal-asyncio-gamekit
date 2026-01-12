@@ -5,6 +5,7 @@ namespace PfinalClub\AsyncioGamekit\Room\Traits;
 
 use PfinalClub\AsyncioGamekit\Exceptions\RoomException;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
+use PfinalClub\AsyncioGamekit\Constants\RoomStatus;
 
 /**
  * LifecycleManagement Trait
@@ -13,7 +14,7 @@ use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 trait LifecycleManagement
 {
     /** @var string 房间状态 */
-    protected string $status = 'waiting'; // waiting, running, finished
+    protected string $status = RoomStatus::WAITING;
     
     /** @var bool 是否正在运行 */
     protected bool $isRunning = false;
@@ -74,7 +75,7 @@ trait LifecycleManagement
         }
 
         $this->isRunning = true;
-        $this->setStatus('running');
+        $this->setStatus(RoomStatus::RUNNING);
 
         try {
             $this->onCreate();
@@ -116,7 +117,7 @@ trait LifecycleManagement
         // 清理自定义数据
         $this->clearData();
 
-        $this->setStatus('finished');
+        $this->setStatus(RoomStatus::FINISHED);
         
         return null;
     }

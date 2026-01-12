@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PfinalClub\AsyncioGamekit\Manager;
 
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Exceptions\ManagerException;
 
 /**

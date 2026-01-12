@@ -10,6 +10,7 @@ use PfinalClub\AsyncioGamekit\Room\Traits\{
     TimerManagement,
     DataStorage
 };
+use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
 
 /**
  * Room 房间基类
@@ -55,6 +56,9 @@ abstract class Room implements RoomInterface
     
     /** @var bool 【性能优化】玩家列表是否已修改（脏标记） */
     private bool $isPlayersListDirty = true;
+    
+    /** @var string|null 缓存的类名 */
+    private ?string $cachedClassName = null;
 
     /**
      * @param string $id 房间ID
@@ -68,6 +72,19 @@ abstract class Room implements RoomInterface
         // 缓存常用配置
         $this->cachedMaxPlayers = $this->config['max_players'] ?? 4;
         $this->cachedMinPlayers = $this->config['min_players'] ?? 2;
+    }
+    
+    /**
+     * 获取类名（带缓存）
+     * 
+     * @return string 类名
+     */
+    public function getClassName(): string
+    {
+        if ($this->cachedClassName === null) {
+            $this->cachedClassName = get_class($this);
+        }
+        return $this->cachedClassName;
     }
 
     /**
@@ -117,11 +134,7 @@ abstract class Room implements RoomInterface
         
         // 预先编码一次消息，避免每个玩家都重复编码
         try {
-            $message = json_encode([
-                'event' => $event,
-                'data' => $data,
-                'timestamp' => microtime(true)
-            ], JSON_THROW_ON_ERROR);
+            $message = JsonEncoder::encodeMessage($event, $data);
         } catch (\JsonException $e) {
             \PfinalClub\AsyncioGamekit\Logger\LoggerFactory::error("Failed to encode broadcast message", [
                 'event' => $event,

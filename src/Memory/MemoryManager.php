@@ -83,26 +83,28 @@ class MemoryManager implements MemoryManagerInterface
     }
 
     /**
-     * 获取内存使用百分比
-     */
-    public function getUsagePercent(): float
-    {
-        if ($this->limit === 0) {
-            return 0.0;
-        }
-
-        return (memory_get_usage(true) / $this->limit) * 100;
-    }
-
-    /**
      * 获取统计信息
      */
     public function getStats(): array
     {
         $current = memory_get_usage(true);
         $peak = memory_get_peak_usage(true);
+        $phpMemoryLimit = $this->parsePhpMemoryLimit(ini_get('memory_limit'));
 
         $stats = [
+            // 字节格式
+            'current_bytes' => $current,
+            'peak_bytes' => $peak,
+            'limit_bytes' => $this->limit,
+            // MB 格式
+            'current_mb' => round($current / 1024 / 1024, 2),
+            'peak_mb' => round($peak / 1024 / 1024, 2),
+            'limit_mb' => round($this->limit / 1024 / 1024, 2),
+            // 百分比
+            'usage_percentage' => $this->limit > 0 ? ($current / $this->limit) * 100 : 0,
+            // PHP 内存限制
+            'php_memory_limit' => $phpMemoryLimit,
+            // 兼容性别名
             'current' => $current,
             'peak' => $peak,
             'limit' => $this->limit,
@@ -111,12 +113,32 @@ class MemoryManager implements MemoryManagerInterface
             'warning_threshold_percent' => $this->warningThreshold * 100,
         ];
 
-        // 转换为可读格式
-        $stats['current_mb'] = round($current / 1024 / 1024, 2);
-        $stats['peak_mb'] = round($peak / 1024 / 1024, 2);
-        $stats['limit_mb'] = round($this->limit / 1024 / 1024, 2);
-
         return $stats;
+    }
+
+    /**
+     * 解析 PHP 内存限制配置
+     * 
+     * @param string $memoryLimit PHP ini 中的 memory_limit 值
+     * @return int 字节数
+     */
+    private function parsePhpMemoryLimit(string $memoryLimit): int
+    {
+        $memoryLimit = trim($memoryLimit);
+        
+        if ($memoryLimit === '-1' || $memoryLimit === '') {
+            return -1; // 无限制
+        }
+
+        $unit = strtolower(substr($memoryLimit, -1));
+        $value = (int) $memoryLimit;
+
+        return match ($unit) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value, // 字节
+        };
     }
 
     /**
@@ -197,5 +219,37 @@ class MemoryManager implements MemoryManagerInterface
         }
 
         return round($bytes, 2) . ' ' . $units[$unitIndex];
+    }
+
+    /**
+     * 设置检查间隔
+     */
+    public function setCheckInterval(int $interval): void
+    {
+        $this->checkInterval = max(1, $interval); // 最小1秒
+    }
+
+    /**
+     * 设置警告阈值
+     */
+    public function setWarningThreshold(float $threshold): void
+    {
+        $this->warningThreshold = max(0.1, min(0.95, $threshold)); // 限制在10%-95%之间
+    }
+
+    /**
+     * 获取检查间隔
+     */
+    public function getCheckInterval(): int
+    {
+        return $this->checkInterval;
+    }
+
+    /**
+     * 获取警告阈值
+     */
+    public function getWarningThreshold(): float
+    {
+        return $this->warningThreshold;
     }
 }

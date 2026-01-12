@@ -4,7 +4,7 @@ namespace PfinalClub\AsyncioGamekit\Tests;
 
 use PHPUnit\Framework\TestCase;
 use PfinalClub\AsyncioGamekit\RoomManager;
-use PfinalClub\AsyncioGamekit\Room;
+use PfinalClub\AsyncioGamekit\Room\Room;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\Tests\Helpers\TestRoom;
 
