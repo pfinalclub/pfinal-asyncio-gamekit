@@ -7,6 +7,7 @@ namespace PfinalClub\AsyncioGamekit\Exceptions;
 use PfinalClub\AsyncioGamekit\Player;
 use PfinalClub\AsyncioGamekit\RoomManager;
 use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
+use PfinalClub\AsyncioGamekit\Constants\GameEvents;
 
 /**
  * 增强异常处理器
@@ -26,16 +27,11 @@ class EnhancedExceptionHandler
         'recent' => []
     ];
     
+    /** @var array<string, int> 玩家统计的时间戳映射（用于清理过期统计） */
+    private array $playerStatsTimestamps = [];
+    
     /** @var int 最大最近异常记录数 */
     private const MAX_RECENT_EXCEPTIONS = 100;
-    
-    /** @var array 需要清理的资源类型 */
-    private array $resourceTypes = [
-        'player_connections',
-        'room_instances',
-        'timer_handles',
-        'memory_cache'
-    ];
 
     /**
      * 构造函数
@@ -259,6 +255,8 @@ class EnhancedExceptionHandler
             $playerId = $player->getId();
             $this->exceptionStats['by_player'][$playerId] = 
                 ($this->exceptionStats['by_player'][$playerId] ?? 0) + 1;
+            // 记录时间戳用于清理
+            $this->playerStatsTimestamps[$playerId] = time();
         }
         
         // 记录最近异常
@@ -335,6 +333,12 @@ class EnhancedExceptionHandler
         
         // 清理玩家统计（保留最近24小时的）
         $oneDayAgo = $currentTime - 86400;
-        // 这里需要更复杂的实现来跟踪时间戳
+        foreach ($this->playerStatsTimestamps as $playerId => $timestamp) {
+            if ($timestamp < $oneDayAgo) {
+                // 移除过期的玩家统计
+                unset($this->exceptionStats['by_player'][$playerId]);
+                unset($this->playerStatsTimestamps[$playerId]);
+            }
+        }
     }
 }

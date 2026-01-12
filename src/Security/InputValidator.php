@@ -12,11 +12,21 @@ use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
  * 输入验证器
  * 
  * 验证和清理用户输入，防止注入攻击
+ * 
+ * 安全优化：
+ * - 事件白名单仅在初始化时设置，运行时不可修改
+ * - 支持通过构造函数注入自定义事件列表
  */
 class InputValidator
 {
-    /** 允许的事件白名单（使用 GameEvents 常量初始化） */
-    private static ?array $allowedEvents = null;
+    /** 允许的事件白名单（实例级别，不可被外部修改）使用关联数组优化查找性能 */
+    private array $allowedEvents;
+
+    /** 标记是否已初始化默认事件列表 */
+    private static bool $defaultEventsInitialized = false;
+
+    /** 默认事件列表缓存 */
+    private static array $defaultEvents = [];
 
     /** 最大消息大小 (64KB) */
     private const MAX_MESSAGE_SIZE = 65536;
@@ -28,12 +38,32 @@ class InputValidator
     private const MAX_PLAYER_NAME_LENGTH = 32;
 
     /**
-     * 初始化允许的事件列表
+     * 构造函数
+     * 
+     * @param array|null $customEvents 自定义允许的事件列表，null 表示使用默认列表
      */
-    private static function initAllowedEvents(): void
+    public function __construct(?array $customEvents = null)
     {
-        if (self::$allowedEvents === null) {
-            self::$allowedEvents = GameEvents::getAllowedClientEvents();
+        if ($customEvents !== null) {
+            // 将自定义事件列表转换为关联数组
+            $this->allowedEvents = array_fill_keys($customEvents, true);
+        } else {
+            $this->initDefaultEvents();
+            $this->allowedEvents = self::$defaultEvents;
+        }
+    }
+
+    /**
+     * 初始化默认事件列表（仅执行一次）
+     * 将数组转换为关联数组以优化查找性能（O(1) vs O(n)）
+     */
+    private function initDefaultEvents(): void
+    {
+        if (!self::$defaultEventsInitialized) {
+            $events = GameEvents::getAllowedClientEvents();
+            // 转换为关联数组，键为事件名，值为 true，用于 O(1) 查找
+            self::$defaultEvents = array_fill_keys($events, true);
+            self::$defaultEventsInitialized = true;
         }
     }
 
@@ -46,7 +76,6 @@ class InputValidator
      */
     public function validateMessage(string $data): array
     {
-        self::initAllowedEvents();
         // 1. 大小检查
         if (strlen($data) > self::MAX_MESSAGE_SIZE) {
             throw ServerException::invalidMessageFormat("Message too large");
@@ -68,8 +97,8 @@ class InputValidator
             throw ServerException::invalidMessageFormat("Missing or invalid 'event' field");
         }
 
-        // 4. 事件白名单检查
-        if (!in_array($message['event'], self::$allowedEvents, true)) {
+        // 4. 事件白名单检查（使用 isset 实现 O(1) 查找）
+        if (!isset($this->allowedEvents[$message['event']])) {
             throw ServerException::invalidMessageFormat("Unknown event type: {$message['event']}");
         }
 
@@ -123,6 +152,8 @@ class InputValidator
         $intFields = [
             'max_players' => ['min' => 2, 'max' => 100],
             'min_players' => ['min' => 1, 'max' => 100],
+            'empty_room_destroy_delay' => ['min' => 0, 'max' => 3600], // 0-3600秒
+            'error_recovery_delay' => ['min' => 0, 'max' => 60], // 0-60秒
         ];
         
         foreach ($intFields as $field => $limits) {
@@ -195,29 +226,49 @@ class InputValidator
     }
 
     /**
-     * 添加自定义允许的事件
-     * 
-     * @param string $event 事件名称
-     */
-    public static function addAllowedEvent(string $event): void
-    {
-        self::initAllowedEvents();
-        
-        if (!in_array($event, self::$allowedEvents, true)) {
-            self::$allowedEvents[] = $event;
-        }
-    }
-
-    /**
-     * 获取允许的事件列表
+     * 获取允许的事件列表（只读）
+     * 返回普通数组（键为事件名）
      * 
      * @return array
      */
-    public static function getAllowedEvents(): array
+    public function getAllowedEvents(): array
     {
-        self::initAllowedEvents();
-        
-        return self::$allowedEvents;
+        return array_keys($this->allowedEvents);
+    }
+
+    /**
+     * 检查事件是否被允许
+     * 
+     * @param string $event 事件名称
+     * @return bool
+     */
+    public function isEventAllowed(string $event): bool
+    {
+        return isset($this->allowedEvents[$event]);
+    }
+
+    /**
+     * 创建带自定义事件的新验证器实例
+     * 
+     * @param array $additionalEvents 额外允许的事件
+     * @return self
+     */
+    public function withAdditionalEvents(array $additionalEvents): self
+    {
+        // 合并现有事件和新事件，转换为关联数组
+        $mergedEvents = array_merge(array_keys($this->allowedEvents), $additionalEvents);
+        $mergedEvents = array_unique($mergedEvents);
+        return new self($mergedEvents);
+    }
+
+    /**
+     * 重置默认事件缓存（仅用于测试）
+     * @internal
+     */
+    public static function resetDefaultEvents(): void
+    {
+        self::$defaultEventsInitialized = false;
+        self::$defaultEvents = [];
     }
 }
 

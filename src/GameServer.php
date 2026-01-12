@@ -364,9 +364,25 @@ class GameServer
                 break;
 
             case GameEvents::GET_ROOMS:
-                // 使用轻量级版本提高性能
-                $rooms = array_map(fn($r) => $r->toArrayLight(), $this->roomManager->getRooms());
-                $player->send(GameEvents::ROOMS_LIST, ['rooms' => array_values($rooms)]);
+                // 【性能优化】添加分页支持，避免一次性返回所有房间
+                $page = (int)($data['page'] ?? 1);
+                $limit = min((int)($data['limit'] ?? 50), 100); // 最多100个，防止过大请求
+                $offset = max(0, ($page - 1) * $limit);
+                
+                $allRooms = $this->roomManager->getRooms();
+                $total = count($allRooms);
+                
+                // 分页切片
+                $rooms = array_slice($allRooms, $offset, $limit, true);
+                $rooms = array_map(fn($r) => $r->toArrayLight(), $rooms);
+                
+                $player->send(GameEvents::ROOMS_LIST, [
+                    'rooms' => array_values($rooms),
+                    'total' => $total,
+                    'page' => $page,
+                    'limit' => $limit,
+                    'has_more' => ($offset + $limit) < $total
+                ]);
                 break;
 
             case GameEvents::GET_STATS:
@@ -450,6 +466,14 @@ class GameServer
         if (!$roomClass) {
             return false;
         }
+
+        // 安全检查：验证类名格式，防止路径遍历和特殊字符注入
+        if (!$this->isValidClassName($roomClass)) {
+            LoggerFactory::warning("Invalid room class name format", [
+                'room_class' => $roomClass
+            ]);
+            return false;
+        }
         
         // 如果没有配置白名单，检查类是否存在且继承自 Room\Room
         if (empty($this->allowedRoomClasses)) {
@@ -458,6 +482,38 @@ class GameServer
         
         // 使用白名单验证
         return in_array($roomClass, $this->allowedRoomClasses, true);
+    }
+
+    /**
+     * 验证类名格式是否合法
+     * 
+     * @param string $className 类名
+     * @return bool
+     */
+    private function isValidClassName(string $className): bool
+    {
+        // 类名只能包含：字母、数字、下划线、反斜杠（命名空间分隔符）
+        // 不允许：..（路径遍历）、/（正斜杠）、特殊字符
+        if (!preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff\\\\]*$/', $className)) {
+            return false;
+        }
+
+        // 不允许连续的反斜杠
+        if (str_contains($className, '\\\\')) {
+            return false;
+        }
+
+        // 不允许以反斜杠开头或结尾
+        if (str_starts_with($className, '\\') || str_ends_with($className, '\\')) {
+            return false;
+        }
+
+        // 类名长度限制
+        if (strlen($className) > 256) {
+            return false;
+        }
+
+        return true;
     }
     
     /**

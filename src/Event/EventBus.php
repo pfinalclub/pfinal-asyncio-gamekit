@@ -10,6 +10,8 @@ use function PfinalClub\Asyncio\create_task;
  * 事件总线实现
  * 
  * 支持同步和异步事件发布、优先级排序、事件传播控制
+ * 
+ * 性能优化：使用延迟排序策略，仅在发布事件时按需排序
  */
 class EventBus implements EventBusInterface
 {
@@ -18,6 +20,9 @@ class EventBus implements EventBusInterface
 
     /** @var array<string, array> 监听器ID到事件名称的映射 */
     private array $listenerIds = [];
+
+    /** @var array<string, bool> 标记哪些事件的监听器需要重新排序 */
+    private array $needsSort = [];
 
     /**
      * 订阅事件
@@ -37,10 +42,8 @@ class EventBus implements EventBusInterface
 
         $this->listenerIds[$listenerId] = $eventName;
 
-        // 按优先级排序（优先级高的在前）
-        uasort($this->listeners[$eventName], function($a, $b) {
-            return $b['priority'] <=> $a['priority'];
-        });
+        // 标记为需要排序（延迟到 publish 时执行）
+        $this->needsSort[$eventName] = true;
 
         return $listenerId;
     }
@@ -77,6 +80,9 @@ class EventBus implements EventBusInterface
         if (!isset($this->listeners[$eventName])) {
             return $eventObject;
         }
+
+        // 延迟排序：仅在需要时排序
+        $this->sortListenersIfNeeded($eventName);
 
         foreach ($this->listeners[$eventName] as $listenerId => $listenerData) {
             if ($eventObject->isPropagationStopped()) {
@@ -142,6 +148,7 @@ class EventBus implements EventBusInterface
             }
             
             unset($this->listeners[$eventName]);
+            unset($this->needsSort[$eventName]);
         }
     }
 
@@ -152,6 +159,7 @@ class EventBus implements EventBusInterface
     {
         $this->listeners = [];
         $this->listenerIds = [];
+        $this->needsSort = [];
     }
 
     /**
@@ -192,6 +200,22 @@ class EventBus implements EventBusInterface
     private function generateListenerId(): string
     {
         return 'listener_' . uniqid('', true);
+    }
+
+    /**
+     * 按需排序监听器（延迟排序优化）
+     */
+    private function sortListenersIfNeeded(string $eventName): void
+    {
+        if (!isset($this->needsSort[$eventName]) || !$this->needsSort[$eventName]) {
+            return;
+        }
+
+        uasort($this->listeners[$eventName], static function($a, $b) {
+            return $b['priority'] <=> $a['priority'];
+        });
+
+        $this->needsSort[$eventName] = false;
     }
 }
 

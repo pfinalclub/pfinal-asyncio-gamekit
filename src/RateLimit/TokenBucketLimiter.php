@@ -30,6 +30,12 @@ class TokenBucketLimiter implements RateLimiterInterface
 
     /** @var float 桶过期时间（秒，不活动超过此时间的桶将被清理） */
     private float $bucketTTL = 3600; // 1小时
+    
+    /** @var int 清理计数器（降低清理频率） */
+    private int $cleanupCounter = 0;
+    
+    /** @var int 清理间隔（每 N 次调用才清理一次） */
+    private const CLEANUP_INTERVAL = 100;
 
     public function __construct()
     {
@@ -96,8 +102,12 @@ class TokenBucketLimiter implements RateLimiterInterface
         if ($bucket['tokens'] >= 1.0) {
             $bucket['tokens'] -= 1.0;
             
-            // 定期清理过期桶
-            $this->cleanupExpiredBuckets($now);
+            // 【性能优化】降低清理频率，每 N 次调用才清理一次
+            $this->cleanupCounter++;
+            if ($this->cleanupCounter >= self::CLEANUP_INTERVAL) {
+                $this->cleanupCounter = 0;
+                $this->cleanupExpiredBuckets($now);
+            }
             
             return true;
         }

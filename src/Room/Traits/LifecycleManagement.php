@@ -92,6 +92,11 @@ trait LifecycleManagement
      */
     public function destroy(): mixed
     {
+        // 防止重复调用 destroy()
+        if ($this->status === RoomStatus::FINISHED) {
+            return null;
+        }
+
         if ($this->isRunning) {
             $this->isRunning = false;
         }
@@ -182,27 +187,47 @@ trait LifecycleManagement
             ]);
             
             // 尝试安全关闭房间
+            $this->gracefulShutdown();
+        }
+    }
+
+    /**
+     * 优雅关闭房间
+     */
+    private function gracefulShutdown(): void
+    {
+        try {
+            LoggerFactory::warning("Attempting to gracefully close room {room_id}", [
+                'room_id' => $this->id,
+            ]);
+            
+            $this->isRunning = false;
+            $this->setStatus(RoomStatus::FINISHED);
+            
+            // 获取配置的延迟时间
+            $delay = $this->config['error_recovery_delay'] ?? 2;
+            
+            // 延迟销毁，给玩家时间接收错误消息
             try {
-                LoggerFactory::warning("Attempting to gracefully close room {room_id}", [
-                    'room_id' => $this->id,
-                ]);
-                
-                $this->isRunning = false;
-                $this->setStatus('finished');
-                
-                // 延迟销毁，给玩家时间接收错误消息
-                \PfinalClub\Asyncio\create_task(function() {
-                    \PfinalClub\Asyncio\sleep(2);
+                \PfinalClub\Asyncio\create_task(function() use ($delay) {
+                    \PfinalClub\Asyncio\sleep($delay);
                     $this->destroy();
                 });
-            } catch (\Throwable $recoveryError) {
-                // 恢复失败，记录严重错误
-                LoggerFactory::critical("Failed to recover room {room_id}", [
-                    'room_id' => $this->id,
-                    'error' => $recoveryError->getMessage(),
-                    'trace' => $recoveryError->getTraceAsString(),
-                ]);
+            } catch (\RuntimeException $e) {
+                // 非异步环境，直接销毁
+                if (str_contains($e->getMessage(), 'No active CancellationScope')) {
+                    $this->destroy();
+                } else {
+                    throw $e;
+                }
             }
+        } catch (\Throwable $recoveryError) {
+            // 恢复失败，记录严重错误
+            LoggerFactory::critical("Failed to recover room {room_id}", [
+                'room_id' => $this->id,
+                'error' => $recoveryError->getMessage(),
+                'trace' => $recoveryError->getTraceAsString(),
+            ]);
         }
     }
 }

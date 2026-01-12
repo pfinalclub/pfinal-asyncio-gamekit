@@ -11,6 +11,7 @@ use PfinalClub\AsyncioGamekit\Room\Traits\{
     DataStorage
 };
 use PfinalClub\AsyncioGamekit\Utils\JsonEncoder;
+use PfinalClub\AsyncioGamekit\Logger\LoggerFactory;
 
 /**
  * Room 房间基类
@@ -89,6 +90,13 @@ abstract class Room implements RoomInterface
 
     /**
      * 获取默认配置（子类可重写）
+     * 
+     * 可配置项：
+     * - max_players: 最大玩家数（默认 4）
+     * - min_players: 最小玩家数（默认 2）
+     * - auto_start: 是否自动开始（默认 false）
+     * - empty_room_destroy_delay: 空房间销毁延迟秒数（默认 5）
+     * - error_recovery_delay: 错误恢复延迟秒数（默认 2）
      */
     protected function getDefaultConfig(): array
     {
@@ -96,6 +104,8 @@ abstract class Room implements RoomInterface
             'max_players' => 4,
             'min_players' => 2,
             'auto_start' => false,
+            'empty_room_destroy_delay' => 5,
+            'error_recovery_delay' => 2,
         ];
     }
 
@@ -136,7 +146,7 @@ abstract class Room implements RoomInterface
         try {
             $message = JsonEncoder::encodeMessage($event, $data);
         } catch (\JsonException $e) {
-            \PfinalClub\AsyncioGamekit\Logger\LoggerFactory::error("Failed to encode broadcast message", [
+            LoggerFactory::error("Failed to encode broadcast message", [
                 'event' => $event,
                 'room_id' => $this->id,
                 'error' => $e->getMessage()
@@ -167,7 +177,7 @@ abstract class Room implements RoomInterface
         // 批量移除发送失败的玩家（连接已断开）
         if (!empty($failedPlayers)) {
             foreach ($failedPlayers as $playerId) {
-                \PfinalClub\AsyncioGamekit\Logger\LoggerFactory::warning("Removing player due to send failure", [
+                LoggerFactory::warning("Removing player due to send failure", [
                     'player_id' => $playerId,
                     'room_id' => $this->id,
                 ]);

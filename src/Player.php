@@ -15,8 +15,8 @@ class Player
     /** @var string 玩家ID */
     private string $id;
     
-    /** @var string|null 玩家名称 */
-    private ?string $name;
+    /** @var string 玩家名称 */
+    private string $name;
     
     /** @var mixed 连接对象（如 Workerman Connection） */
     private mixed $connection;
@@ -42,7 +42,7 @@ class Player
     /**
      * @param string $id 玩家ID
      * @param mixed $connection 连接对象
-     * @param string|null $name 玩家名称
+     * @param string|null $name 玩家名称（如果为 null，则使用默认名称）
      */
     public function __construct(string $id, mixed $connection = null, ?string $name = null)
     {
@@ -216,6 +216,58 @@ class Player
         
         $this->isDirty = false;
         return $this->cachedArray;
+    }
+
+    /**
+     * 清理玩家资源
+     * 重置所有状态，用于玩家断开连接或异常清理
+     */
+    public function cleanup(): void
+    {
+        // 清理自定义数据
+        $this->data = [];
+        
+        // 重置准备状态
+        $this->ready = false;
+        
+        // 清除房间引用
+        $this->room = null;
+        
+        // 重置连接状态
+        $this->hasValidConnection = null;
+        
+        // 清除缓存
+        $this->cachedArray = null;
+        $this->isDirty = true;
+    }
+
+    /**
+     * 重置连接验证状态
+     * 当连接可能已恢复时调用
+     */
+    public function resetConnectionState(): void
+    {
+        $this->hasValidConnection = null;
+    }
+
+    /**
+     * 检查连接是否有效
+     */
+    public function isConnected(): bool
+    {
+        if ($this->hasValidConnection === null) {
+            $this->hasValidConnection = $this->connection && method_exists($this->connection, 'send');
+        }
+        return $this->hasValidConnection;
+    }
+
+    /**
+     * 清除所有自定义数据
+     */
+    public function clearData(): void
+    {
+        $this->data = [];
+        $this->isDirty = true;
     }
 }
 

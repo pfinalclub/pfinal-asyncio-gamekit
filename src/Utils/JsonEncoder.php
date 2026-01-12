@@ -25,21 +25,47 @@ class JsonEncoder
         return json_encode($data, self::ENCODE_FLAGS);
     }
 
+    /** @var float 缓存的当前时间戳（毫秒级精度） */
+    private static float $cachedTimestamp = 0;
+    
+    /** @var int 缓存的当前时间戳（毫秒） */
+    private static int $cachedTimestampMs = 0;
+
+    /**
+     * 获取缓存的当前时间戳（每毫秒更新一次）
+     * 减少 microtime() 调用次数，提升高频场景性能
+     */
+    private static function getCachedTimestamp(): float
+    {
+        $nowMs = (int)(microtime(true) * 1000);
+        if ($nowMs !== self::$cachedTimestampMs) {
+            self::$cachedTimestampMs = $nowMs;
+            self::$cachedTimestamp = microtime(true);
+        }
+        return self::$cachedTimestamp;
+    }
+
     /**
      * 编码游戏消息
      * 
      * @param string $event 事件名称
      * @param mixed $data 数据
+     * @param bool $includeTimestamp 是否包含时间戳（默认 true）
      * @return string JSON 字符串
      * @throws \JsonException
      */
-    public static function encodeMessage(string $event, mixed $data = null): string
+    public static function encodeMessage(string $event, mixed $data = null, bool $includeTimestamp = true): string
     {
-        return self::encode([
+        $message = [
             'event' => $event,
             'data' => $data,
-            'timestamp' => microtime(true)
-        ]);
+        ];
+        
+        if ($includeTimestamp) {
+            $message['timestamp'] = self::getCachedTimestamp();
+        }
+        
+        return self::encode($message);
     }
 
     /**

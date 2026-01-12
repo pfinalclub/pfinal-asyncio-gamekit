@@ -25,6 +25,9 @@ class GameEvents
     /** 错误 */
     public const ERROR = 'error';
     
+    /** 断开连接 */
+    public const DISCONNECTED = 'disconnected';
+    
     // ==================== 房间事件 ====================
     
     /** 创建房间 */
@@ -116,6 +119,7 @@ class GameEvents
             self::SET_NAME,
             self::NAME_SET,
             self::ERROR,
+            self::DISCONNECTED,
         ];
     }
     

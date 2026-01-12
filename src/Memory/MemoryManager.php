@@ -30,6 +30,15 @@ class MemoryManager implements MemoryManagerInterface
 
     /** @var bool 是否已发出警告 */
     private bool $warningIssued = false;
+    
+    /** @var float 上次统计更新时间 */
+    private float $lastStatsUpdate = 0;
+    
+    /** @var array 缓存的统计信息 */
+    private array $cachedStats = [];
+    
+    /** @var float 统计缓存TTL（秒） */
+    private const STATS_CACHE_TTL = 1.0;
 
     /**
      * @param int $limit 内存限制（MB），0表示不限制
@@ -84,9 +93,17 @@ class MemoryManager implements MemoryManagerInterface
 
     /**
      * 获取统计信息
+     * 【性能优化】添加缓存，减少 memory_get_usage() 调用频率
      */
     public function getStats(): array
     {
+        $now = microtime(true);
+        
+        // 如果缓存有效，直接返回
+        if ($now - $this->lastStatsUpdate < self::STATS_CACHE_TTL && !empty($this->cachedStats)) {
+            return $this->cachedStats;
+        }
+        
         $current = memory_get_usage(true);
         $peak = memory_get_peak_usage(true);
         $phpMemoryLimit = $this->parsePhpMemoryLimit(ini_get('memory_limit'));
@@ -113,6 +130,10 @@ class MemoryManager implements MemoryManagerInterface
             'warning_threshold_percent' => $this->warningThreshold * 100,
         ];
 
+        // 更新缓存
+        $this->cachedStats = $stats;
+        $this->lastStatsUpdate = $now;
+        
         return $stats;
     }
 

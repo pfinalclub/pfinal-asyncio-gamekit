@@ -56,17 +56,7 @@ trait PlayerManagement
 
         // 检查是否自动开始
         if (($this->config['auto_start'] ?? false) && $this->canStart()) {
-            // 仅在异步环境中启动任务
-            try {
-                create_task(fn() => $this->start());
-            } catch (\RuntimeException $e) {
-                // 如果没有活动的CancellationScope，直接同步启动
-                if (strpos($e->getMessage(), 'No active CancellationScope') !== false) {
-                    $this->start();
-                } else {
-                    throw $e;
-                }
-            }
+            $this->tryStartRoom();
         }
 
         return true;
@@ -99,24 +89,7 @@ trait PlayerManagement
 
         // 如果房间为空且未运行，延迟销毁（给新玩家加入的机会）
         if (empty($this->players) && $this->status !== RoomStatus::RUNNING) {
-            // 仅在异步环境中启动延迟销毁任务
-            try {
-                create_task(function() {
-                    \PfinalClub\Asyncio\sleep(5); // 延迟 5 秒
-                    // 再次检查是否仍为空
-                    if (empty($this->players)) {
-                        LoggerFactory::info("Auto-destroying empty room {room_id}", [
-                            'room_id' => $this->id
-                        ]);
-                        $this->destroy();
-                    }
-                });
-            } catch (\RuntimeException $e) {
-                // 如果没有活动的CancellationScope，跳过延迟销毁
-                if (strpos($e->getMessage(), 'No active CancellationScope') === false) {
-                    throw $e;
-                }
-            }
+            $this->scheduleEmptyRoomDestroy();
         }
 
         return true;
@@ -192,6 +165,62 @@ trait PlayerManagement
             'player_id' => $player->getId(),
             'room_id' => $this->id,
         ]);
+    }
+
+    /**
+     * 尝试启动房间（处理异步/同步环境）
+     */
+    private function tryStartRoom(): void
+    {
+        try {
+            create_task(fn() => $this->start());
+        } catch (\RuntimeException $e) {
+            // 检查是否是 CancellationScope 相关异常
+            if (str_contains($e->getMessage(), 'No active CancellationScope')) {
+                // 同步环境，直接启动（带异常处理）
+                try {
+                    $this->start();
+                } catch (\Throwable $startError) {
+                    LoggerFactory::error("Failed to start room synchronously", [
+                        'room_id' => $this->id,
+                        'error' => $startError->getMessage(),
+                    ]);
+                }
+            } else {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * 调度空房间延迟销毁
+     */
+    private function scheduleEmptyRoomDestroy(): void
+    {
+        // 获取配置的延迟时间，默认 5 秒
+        $delay = $this->config['empty_room_destroy_delay'] ?? 5;
+        
+        try {
+            create_task(function() use ($delay) {
+                \PfinalClub\Asyncio\sleep($delay);
+                // 再次检查是否仍为空
+                if (empty($this->players)) {
+                    LoggerFactory::info("Auto-destroying empty room {room_id}", [
+                        'room_id' => $this->id
+                    ]);
+                    $this->destroy();
+                }
+            });
+        } catch (\RuntimeException $e) {
+            // 非异步环境，跳过延迟销毁
+            if (!str_contains($e->getMessage(), 'No active CancellationScope')) {
+                throw $e;
+            }
+            // 同步环境下记录日志，不执行延迟销毁
+            LoggerFactory::debug("Skipping delayed destroy in sync environment", [
+                'room_id' => $this->id
+            ]);
+        }
     }
 }
 
