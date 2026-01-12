@@ -48,7 +48,9 @@ composer require pfinalclub/asyncio-gamekit
 
 - PHP >= 8.1
 - pfinalclub/asyncio >= 3.0
-- workerman/workerman >= 4.1
+- workerman/workerman >= 4.1 或 >= 5.0
+
+> **注意**: 如果您的项目已安装 `workerman/workerman v5.x`，请确保 `pfinalclub/asyncio` 也支持 Workerman v5。如果遇到依赖冲突，请使用 `composer require pfinalclub/asyncio-gamekit --with-all-dependencies` 安装。
 
 ## 🚀 快速开始
 

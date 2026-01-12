@@ -14,7 +14,7 @@
     "require": {
         "php": ">=8.1",
         "pfinalclub/asyncio": "^3.0.0",
-        "workerman/workerman": "^4.1",
+        "workerman/workerman": "^4.1|^5.0",
         "workerman/gateway-worker": "^3.0",
         "workerman/channel": "^1.1"
     },
